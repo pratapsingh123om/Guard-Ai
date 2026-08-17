@@ -11,4 +11,4 @@ async def chat_endpoint(request:ChatRequest):
 
 
   dummy_response=f"Agent says :I recived your message: `{user_message}`"
-  return {"response":dummy_response}
+  return {"response": dummy_response if user_message == "Hi" else "bye"}
