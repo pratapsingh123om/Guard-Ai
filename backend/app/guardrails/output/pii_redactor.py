@@ -3,6 +3,7 @@ from backend.app.guardrails.base import Guardrail, GuardrailResult, GuardrailAct
 
 try:
     from presidio_analyzer import AnalyzerEngine
+    from presidio_analyzer.nlp_engine import NlpEngineProvider
     from presidio_anonymizer import AnonymizerEngine
     PRESIDIO_AVAILABLE = True
 except ImportError:
@@ -17,7 +18,13 @@ class PIIGuardrail(Guardrail):
     
     def __init__(self):
         if PRESIDIO_AVAILABLE:
-            self.analyzer = AnalyzerEngine()
+            configuration = {
+                "nlp_engine_name": "spacy",
+                "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}],
+            }
+            provider = NlpEngineProvider(nlp_configuration=configuration)
+            nlp_engine = provider.create_engine()
+            self.analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=["en"])
             self.anonymizer = AnonymizerEngine()
         else:
             self.analyzer = None
