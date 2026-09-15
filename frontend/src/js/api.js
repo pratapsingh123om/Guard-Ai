@@ -1,4 +1,4 @@
-const API_BASE = window.location.hostname === 'localhost' ? 'http://127.0.0.1:8080' : '';
+const API_BASE = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://127.0.0.1:8080' : '');
 
 export async function checkHealth() {
     try {
