@@ -1,7 +1,7 @@
 import os
 import httpx
 
-async def generate_response(prompt: str) -> str:
+async def generate_response(prompt: str, system_prompt: str = "You are a helpful AI assistant protected by Guard-AI.") -> str:
     api_key = os.getenv("OPENAI_API_KEY")
     base_url = os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
     model = os.getenv("LLM_MODEL", "meta-llama/llama-3-8b-instruct:free")
@@ -17,7 +17,7 @@ async def generate_response(prompt: str) -> str:
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": "You are a helpful AI assistant protected by Guard-AI."},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
         ]
     }

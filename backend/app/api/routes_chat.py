@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 # Import our new guardrails
 from backend.app.guardrails.input.prompt_injection import PromptInjectionGuardrail
+from backend.app.guardrails.input.policy_filter import PolicyFilterGuardrail
 from backend.app.guardrails.output.pii_redactor import PIIGuardrail
 
 class ChatRequest(BaseModel):
@@ -11,18 +12,23 @@ class ChatRequest(BaseModel):
 router = APIRouter()
 
 # Instantiate guardrails
-input_guard = PromptInjectionGuardrail()
+input_guard_basic = PromptInjectionGuardrail()
+input_guard_llm = PolicyFilterGuardrail()
 output_guard = PIIGuardrail()
 
 @router.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     user_message = request.message
     
-    # 1. INPUT GUARDRAIL: Check for prompt injection
-    input_check = input_guard.check(user_message)
-    if not input_check.passed:
-        # Block the request entirely
-        raise HTTPException(status_code=400, detail=input_check.reason)
+    # 1A. FAST INPUT GUARDRAIL: Basic heuristic check
+    input_check_1 = input_guard_basic.check(user_message)
+    if not input_check_1.passed:
+        raise HTTPException(status_code=400, detail=input_check_1.reason)
+        
+    # 1B. SMART INPUT GUARDRAIL: LLM-as-a-judge Policy Filter
+    input_check_2 = await input_guard_llm.async_check(user_message)
+    if not input_check_2.passed:
+        raise HTTPException(status_code=400, detail=input_check_2.reason)
     
     # 2. LLM CALL (Real via OpenRouter/OpenAI API)
     from backend.app.agent.llm_client import generate_response
