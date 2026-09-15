@@ -1,0 +1,17 @@
+{
+  "tools": {
+    "search": {"risk": "low", "action": "allow"},
+    "retrieve_document": {"risk": "low", "action": "allow"},
+    "read_file": {"risk": "low", "action": "allow"},
+    "write_file": {"risk": "medium", "action": "require_approval"},
+    "send_message": {"risk": "high", "action": "require_approval"},
+    "run_command": {"risk": "high", "action": "require_approval"},
+    "delete_resource": {"risk": "critical", "action": "require_approval"},
+    "make_payment": {"risk": "critical", "action": "require_approval"}
+  },
+  "blocked_argument_patterns": [
+    {"name": "recursive_delete", "pattern": "(?:rm\\s+-rf|remove-item[^\\n]*-recurse|del\\s+/[sq])"},
+    {"name": "credential_in_arguments", "pattern": "(?:api[_ -]?key|password|private[_ -]?key|secret)[\\\"']?\\s*[=:]"},
+    {"name": "shell_download_execute", "pattern": "(?:curl|wget|invoke-webrequest)[^\\n|;]*(?:\\||;|&&)[^\\n]*(?:sh|bash|powershell|pwsh)"}
+  ]
+}

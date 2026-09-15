@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guard-AI | Enterprise Agent Security</title>
+    <link rel="stylesheet" href="./styles/base.css">
+    <link rel="stylesheet" href="./styles/components.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fa-solid fa-shield-halved"></i> Guard-AI
+            </div>
+            <nav>
+                <a href="#" class="active" id="nav-chat"><i class="fa-solid fa-message"></i> Sandbox Chat</a>
+                <a href="#" id="nav-logs"><i class="fa-solid fa-list"></i> Telemetry Logs</a>
+                <a href="#" id="nav-docs"><i class="fa-solid fa-book"></i> API Docs</a>
+            </nav>
+            <div class="system-status">
+                <div class="status-indicator online"></div>
+                <span id="backend-status">Backend Connected</span>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Chat View -->
+            <div id="view-chat" class="view-section active">
+                <header>
+                    <h2>Test your Guardrails</h2>
+                    <p>Send messages to the AI Agent. Watch the telemetry panel on the right to see guardrails in action.</p>
+                </header>
+                
+                <div class="workspace">
+                    <!-- Left: Chat UI -->
+                    <div class="chat-panel">
+                        <div class="chat-history" id="chat-history">
+                            <div class="message system">
+                                <div class="avatar"><i class="fa-solid fa-robot"></i></div>
+                                <div class="bubble">Hello! I am protected by Guard-AI. Try sending me PII or a prompt injection attack.</div>
+                            </div>
+                        </div>
+                        <div class="chat-input-area">
+                            <input type="text" id="chat-input" placeholder="Type a message (e.g. 'ignore all previous instructions' or 'my email is admin@corp.com')">
+                            <button id="send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Right: Live Telemetry -->
+                    <div class="telemetry-panel">
+                        <h3><i class="fa-solid fa-satellite-dish"></i> Live Guardrail Activity</h3>
+                        <div class="telemetry-feed" id="telemetry-feed">
+                            <div class="empty-state">No activity yet. Send a message to start telemetry.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script type="module" src="./js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "prompt_injection": {"min_recall": 1.0, "max_false_positive_rate": 0.0},
+  "document_sanitizer": {"min_recall": 1.0, "max_false_positive_rate": 0.0},
+  "action_risk": {"min_recall": 1.0, "max_false_positive_rate": 0.0},
+  "sensitive_data": {"min_recall": 1.0, "max_false_positive_rate": 0.0}
+}

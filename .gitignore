@@ -1,7 +1,14 @@
 # Python
 venv/
+.venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+*.egg-info/
+.coverage
+htmlcov/
+build/
+dist/
 
 # IDEs
 .vscode/
@@ -12,3 +19,6 @@ __pycache__/
 
 # MacOS
 .DS_Store
+
+# Generated evaluation reports
+eval/reports/
