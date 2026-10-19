@@ -11,6 +11,7 @@ from urllib.parse import unquote, urlsplit
 
 import httpx
 
+from backend.app.demo.database import demo_database_root, ensure_demo_database
 from backend.app.integrations.models import ConnectionStatus
 from backend.app.integrations.store import ConnectionRecord
 
@@ -30,11 +31,6 @@ class ConnectionTestOutcome:
     error: str | None = None
 
 
-def _sqlite_root() -> Path:
-    configured = os.getenv("GUARD_SQLITE_ROOT", "demo/integration-data")
-    return Path(configured).resolve()
-
-
 def _verify_sqlite(record: ConnectionRecord) -> ConnectionTestOutcome:
     parsed = urlsplit(record.endpoint)
     relative_name = unquote(parsed.path).lstrip("/\\")
@@ -49,7 +45,8 @@ def _verify_sqlite(record: ConnectionRecord) -> ConnectionTestOutcome:
             error="invalid_sqlite_filename",
         )
 
-    root = _sqlite_root()
+    ensure_demo_database()
+    root = demo_database_root()
     candidate = (root / relative_name).resolve()
     try:
         candidate.relative_to(root)
@@ -134,6 +131,7 @@ def _safe_https_endpoint(
 
 
 def _failed_configuration(method: str, provider: str) -> ConnectionTestOutcome:
+    provider_slug = re.sub(r"[^a-z0-9]+", "_", provider.lower()).strip("_")
     return ConnectionTestOutcome(
         status=ConnectionStatus.FAILED,
         configuration_valid=False,
@@ -141,7 +139,7 @@ def _failed_configuration(method: str, provider: str) -> ConnectionTestOutcome:
         network_reachable=None,
         verification_method=method,
         message=f"{provider} endpoint is outside the verifier allowlist.",
-        error=f"unsafe_{provider.lower()}_endpoint",
+        error=f"unsafe_{provider_slug}_endpoint",
     )
 
 
@@ -245,6 +243,95 @@ async def _verify_supabase(
     )
 
 
+def _guard_demo_health_url(endpoint: str) -> str | None:
+    try:
+        parsed = urlsplit(endpoint)
+        port = parsed.port
+    except ValueError:
+        return None
+
+    host = (parsed.hostname or "").lower()
+    path = parsed.path.rstrip("/")
+    credentials_absent = parsed.username is None and parsed.password is None
+    clean_url = not parsed.query and not parsed.fragment
+    if not credentials_absent or not clean_url or path != "/api/v1/demo":
+        return None
+
+    if parsed.scheme == "http" and host in {"127.0.0.1", "localhost"} and port == 8080:
+        return f"http://{host}:8080/api/v1/demo/health"
+
+    allowed_hosts = {
+        item.strip().lower()
+        for item in os.getenv(
+            "GUARD_DEMO_ALLOWED_HOSTS", "guard-ai-secure-mcp.vercel.app"
+        ).split(",")
+        if item.strip()
+    }
+    if parsed.scheme == "https" and port in {None, 443} and host in allowed_hosts:
+        return f"https://{host}/api/v1/demo/health"
+    return None
+
+
+async def _verify_guard_demo(
+    record: ConnectionRecord,
+    *,
+    transport: httpx.AsyncBaseTransport | None,
+) -> ConnectionTestOutcome:
+    method = "guard_ai_demo_health"
+    health_url = _guard_demo_health_url(record.endpoint)
+    if health_url is None:
+        return _failed_configuration(method, "Guard-AI demo")
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=_HTTP_TIMEOUT,
+            follow_redirects=False,
+            trust_env=False,
+            transport=transport,
+        ) as client:
+            response = await client.get(health_url, headers={"Accept": "application/json"})
+    except httpx.RequestError:
+        return ConnectionTestOutcome(
+            status=ConnectionStatus.FAILED,
+            configuration_valid=True,
+            network_checked=True,
+            network_reachable=False,
+            verification_method=method,
+            message="Guard-AI demo service could not be reached within the verification timeout.",
+            error="guard_ai_demo_network_unreachable",
+        )
+
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {}
+    valid_payload = (
+        response.status_code == 200
+        and payload.get("service") == "guard-ai-demo"
+        and payload.get("status") == "healthy"
+        and payload.get("database") == "ready"
+    )
+    if valid_payload:
+        return ConnectionTestOutcome(
+            status=ConnectionStatus.VERIFIED,
+            configuration_valid=True,
+            network_checked=True,
+            network_reachable=True,
+            verification_method=method,
+            message="Guard-AI demo service and its SQLite database passed a live health check.",
+        )
+
+    return ConnectionTestOutcome(
+        status=ConnectionStatus.FAILED,
+        configuration_valid=True,
+        network_checked=True,
+        network_reachable=True,
+        verification_method=method,
+        message="Guard-AI demo service returned an invalid health response.",
+        error="guard_ai_demo_invalid_health",
+    )
+
+
 async def verify_connection_record(
     record: ConnectionRecord,
     *,
@@ -256,6 +343,8 @@ async def verify_connection_record(
         return await _verify_openrouter(record, transport=transport)
     if record.connector == "supabase":
         return await _verify_supabase(record, transport=transport)
+    if record.connector == "guard_demo":
+        return await _verify_guard_demo(record, transport=transport)
 
     return ConnectionTestOutcome(
         status=ConnectionStatus.CONFIGURED,

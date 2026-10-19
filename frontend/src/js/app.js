@@ -27,6 +27,7 @@ const state = {
 };
 
 const connectorCopy = {
+    guard_demo: 'Live synthetic API backed by SQLite',
     openrouter: 'Hosted multi-model gateway', openai: 'OpenAI models and APIs',
     anthropic: 'Claude model provider', gemini: 'Google Gemini models',
     ollama: 'Local model runtime', custom_ai: 'OpenAI-compatible provider',
@@ -394,7 +395,8 @@ function selectConnector(definition) {
     selected.append(copy);
 
     $('#connection-name').value = `${definition.label} connection`;
-    $('#connection-endpoint').value = definition.default_endpoint || (definition.id === 'sqlite' ? 'sqlite:///guard-ai-demo.db' : '');
+    const demoEndpoint = definition.id === 'guard_demo' ? `${apiLocation}/api/v1/demo` : '';
+    $('#connection-endpoint').value = definition.default_endpoint || demoEndpoint || (definition.id === 'sqlite' ? 'sqlite:///guard-ai-demo.db' : '');
     $('#connection-endpoint').placeholder = definition.id === 'sqlite' ? 'sqlite:///database.db' : 'https://service.example.com';
     renderConnectorFields(definition);
 }

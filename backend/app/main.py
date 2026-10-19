@@ -14,6 +14,7 @@ load_dotenv(".env.integrations", override=False)
 
 from backend.app.api.route_health import router as health_router
 from backend.app.api.routes_connections import router as connections_router
+from backend.app.api.routes_demo import router as demo_router
 from backend.app.api.routes_chat import router as chat_router
 from backend.app.api.routes_policies import router as policies_router
 from backend.app.api.routes_traces import router as traces_router
@@ -90,6 +91,7 @@ app.include_router(health_router)
 app.include_router(chat_router)
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(connections_router, prefix="/api/v1")
+app.include_router(demo_router, prefix="/api/v1")
 app.include_router(policies_router, prefix="/api/v1")
 app.include_router(traces_router, prefix="/api/v1")
 app.mount("/", mcp_app)

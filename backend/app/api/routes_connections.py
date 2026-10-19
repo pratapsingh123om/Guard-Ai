@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, Security, status
@@ -12,6 +11,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, SecretStr
 
 from backend.app.api.dependencies import admin_bearer, require_admin
+from backend.app.demo.database import ensure_demo_database
 from backend.app.integrations.models import (
     CONNECTOR_CATALOG,
     ConnectionCreate,
@@ -110,11 +110,8 @@ async def import_environment_connections() -> EnvironmentImportResponse:
     else:
         unavailable.append("supabase")
 
-    sqlite_root = Path(
-        os.getenv("GUARD_SQLITE_ROOT", "demo/integration-data")
-    ).resolve()
-    sqlite_demo = sqlite_root / "guard-ai-demo.db"
-    if sqlite_demo.is_file():
+    sqlite_demo = ensure_demo_database()
+    if sqlite_demo is not None and sqlite_demo.is_file():
         candidates.append(
             ConnectionCreate(
                 name="SQLite Demo",

@@ -7,6 +7,10 @@ The integration API lets the dashboard register AI providers, databases, vector 
 | Method | Path | Purpose | Operator token |
 |---|---|---|---|
 | GET | `/api/v1/connections/catalog` | List supported connector definitions | No |
+| GET | `/api/v1/demo/health` | Verify the synthetic service and SQLite database | No |
+| GET | `/api/v1/demo/summary` | Read aggregate synthetic demo data | No |
+| GET | `/api/v1/demo/customers` | Read bounded synthetic customer records | No |
+| GET | `/api/v1/demo/orders` | Read bounded synthetic order records | No |
 | GET | `/api/v1/connections` | List configured connections | Yes |
 | POST | `/api/v1/connections` | Register a connection and its credentials | Yes |
 | POST | `/api/v1/connections/import-env` | Import supported server-side environment integrations | Yes |
@@ -54,13 +58,20 @@ Credentials are write-only. Responses contain `credential_fields`, never credent
 }
 ```
 
-The `/test` endpoint performs real, read-only verification for three connectors:
+The `/test` endpoint performs real, read-only verification for four connectors:
 
+- Guard-AI Demo Service calls the allowlisted `/api/v1/demo/health` endpoint and verifies both its service identity marker and SQLite readiness.
 - OpenRouter calls the provider-owned `GET /api/v1/key` endpoint.
 - Supabase calls the project `GET /auth/v1/health` endpoint with the API key in the `apikey` header. Use a publishable key (or legacy anon key) and enforce Row Level Security.
 - SQLite opens a database confined to `GUARD_SQLITE_ROOT` in read-only mode and runs `SELECT 1`. See [the SQLite demo](../demo/integration-data/README.md).
 
-OpenRouter and Supabase destinations are restricted to exact provider-owned HTTPS host patterns, redirects are disabled, environment proxies are ignored, and short connection/request timeouts are enforced. Provider response bodies are never returned or logged. Other connectors currently return `network_checked: false`, so the frontend must label those **Configured**, not **Connected**.
+Guard-AI Demo Service, OpenRouter, and Supabase destinations are restricted to exact HTTPS host allowlists, redirects are disabled, environment proxies are ignored, and short connection/request timeouts are enforced. Provider response bodies are never returned or logged. Other connectors currently return `network_checked: false`, so the frontend must label those **Configured**, not **Connected**.
+
+The demo service endpoint is `https://guard-ai-secure-mcp.vercel.app/api/v1/demo`
+in production and `http://127.0.0.1:8080/api/v1/demo` locally. Add preview or
+custom production hosts explicitly through the comma-separated
+`GUARD_DEMO_ALLOWED_HOSTS` environment variable; arbitrary destinations are
+rejected before any network request is made.
 
 ## Associate connections with a guarded request
 
@@ -72,7 +83,12 @@ OpenRouter and Supabase destinations are restricted to exact provider-owned HTTP
 }
 ```
 
-The returned `trace_id` can be requested from `/api/v1/traces/{trace_id}`. Traces contain guardrail decisions, severity, and connection IDs but deliberately omit raw prompts, retrieved documents, model responses, and credentials.
+When the selected data connection is a verified Guard-AI demo service or bundled
+SQLite database, the chat response also includes `data_contexts` and a summary
+read with fixed, read-only SQL. The returned `trace_id` can be requested from
+`/api/v1/traces/{trace_id}`. Traces contain guardrail decisions, severity, and
+connection IDs but deliberately omit raw prompts, retrieved documents, model
+responses, and credentials.
 
 ## Storage limitation
 

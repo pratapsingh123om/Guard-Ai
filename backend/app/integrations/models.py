@@ -40,6 +40,12 @@ CONNECTOR_CATALOG: dict[str, ConnectorDefinition] = {
     definition.id: definition
     for definition in (
         ConnectorDefinition(
+            id="guard_demo",
+            label="Guard-AI Demo Service",
+            category=ConnectionCategory.API,
+            network_test_supported=True,
+        ),
+        ConnectorDefinition(
             id="openai",
             label="OpenAI",
             category=ConnectionCategory.AI_PROVIDER,

@@ -26,3 +26,9 @@ Register this connection through `POST /api/v1/connections`:
 ```
 
 Calling `POST /api/v1/connections/{id}/test` opens the file in SQLite read-only mode and runs `SELECT 1`. The endpoint cannot select a file outside `GUARD_SQLITE_ROOT`. The database contains only synthetic organizations and orders.
+
+The same records are exposed by the read-only demo service at
+`/api/v1/demo/customers`, `/api/v1/demo/orders`, and `/api/v1/demo/summary`.
+When no explicit `GUARD_SQLITE_ROOT` is set, Guard-AI materializes this seeded
+database automatically (under the platform temporary directory on Vercel). To
+auto-seed an explicitly configured directory, set `GUARD_DEMO_AUTO_SEED=true`.

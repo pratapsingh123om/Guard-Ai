@@ -45,6 +45,8 @@ The system is split into two tightly integrated pipelines:
 
 ## API Endpoints
 - `GET /health` : API status
+- `GET /api/v1/demo/health` : Live demo-service and SQLite readiness check
+- `GET /api/v1/demo/summary|customers|orders` : Read-only synthetic demo data
 - `POST /chat` : Provider-neutral guardrail pipeline and trace generation
 - `GET/POST /api/v1/connections` : Register and list masked AI/data connection metadata
 - `POST /api/v1/connections/import-env` : Import supported server-side integrations without returning secrets
@@ -53,6 +55,21 @@ The system is split into two tightly integrated pipelines:
 - `GET /api/v1/traces` : Inspect secret-safe security traces
 
 Management endpoints require a bearer token supplied through `GUARD_ADMIN_TOKEN`. See [the integration API guide](docs/integration-api.md) for request examples and the current storage limitations.
+
+## Test a real service and database
+
+The deployment includes a synthetic customer/order service backed by a real,
+read-only SQLite database. In the dashboard, unlock the console, choose **Add
+connection**, and select **Guard-AI Demo Service**. The endpoint is filled from
+the current site origin; saving it runs an allowlisted live health check against
+the API and its database. Add **SQLite** with
+`sqlite:///guard-ai-demo.db` to verify the database directly in read-only mode.
+
+After either connection is verified, select it under **Data context** in the
+playground and submit a safe prompt such as “Give me the connected data
+summary.” The response includes aggregate values read from the seeded database,
+and the activity trace records which connection crossed the guardrail boundary.
+All demo records are synthetic.
 
 ### Vercel deployment
 

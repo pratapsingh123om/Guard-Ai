@@ -13,14 +13,16 @@ from backend.app.integrations.testers import verify_connection_record
 
 def _record(*, connector: str, endpoint: str, api_key: str = "demo-secret") -> ConnectionRecord:
     now = datetime.now(timezone.utc)
+    if connector == "openrouter":
+        category = ConnectionCategory.AI_PROVIDER
+    elif connector == "guard_demo":
+        category = ConnectionCategory.API
+    else:
+        category = ConnectionCategory.DATABASE
     return ConnectionRecord(
         id=uuid4(),
         name="Test connection",
-        category=(
-            ConnectionCategory.AI_PROVIDER
-            if connector == "openrouter"
-            else ConnectionCategory.DATABASE
-        ),
+        category=category,
         connector=connector,
         endpoint=endpoint,
         settings={},
@@ -113,3 +115,52 @@ def test_authentication_failure_is_sanitized() -> None:
     assert outcome.network_reachable is True
     assert outcome.error == "supabase_authentication_failed"
     assert secret not in outcome.message
+
+
+def test_guard_demo_verifier_checks_live_database_health() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "https://guard-ai-secure-mcp.vercel.app/api/v1/demo/health"
+        return httpx.Response(
+            200,
+            json={
+                "service": "guard-ai-demo",
+                "status": "healthy",
+                "database": "ready",
+                "records": 7,
+            },
+        )
+
+    outcome = asyncio.run(
+        verify_connection_record(
+            _record(
+                connector="guard_demo",
+                endpoint="https://guard-ai-secure-mcp.vercel.app/api/v1/demo",
+            ),
+            transport=httpx.MockTransport(handler),
+        )
+    )
+
+    assert outcome.status is ConnectionStatus.VERIFIED
+    assert outcome.network_checked is True
+    assert outcome.network_reachable is True
+    assert outcome.verification_method == "guard_ai_demo_health"
+
+
+def test_guard_demo_verifier_rejects_non_allowlisted_host() -> None:
+    def should_not_run(_request: httpx.Request) -> httpx.Response:
+        raise AssertionError("unsafe endpoint must not receive a request")
+
+    outcome = asyncio.run(
+        verify_connection_record(
+            _record(
+                connector="guard_demo",
+                endpoint="https://example.com/api/v1/demo",
+            ),
+            transport=httpx.MockTransport(should_not_run),
+        )
+    )
+
+    assert outcome.status is ConnectionStatus.FAILED
+    assert outcome.configuration_valid is False
+    assert outcome.network_checked is False
+    assert outcome.error == "unsafe_guard_ai_demo_endpoint"

@@ -39,8 +39,12 @@ def test_connector_catalog_is_public_and_contains_no_secrets() -> None:
 
     assert response.status_code == 200
     openrouter = next(item for item in response.json() if item["id"] == "openrouter")
+    demo = next(item for item in response.json() if item["id"] == "guard_demo")
     assert openrouter["category"] == "ai_provider"
     assert openrouter["required_credentials"] == ["api_key"]
+    assert demo["category"] == "api"
+    assert demo["network_test_supported"] is True
+    assert demo["required_credentials"] == []
 
 
 def test_management_api_requires_configured_operator_token(
@@ -268,3 +272,41 @@ def test_chat_trace_references_selected_connections_without_storing_prompts() ->
     assert "confidential quarterly report" not in trace.text
     assert "never-return-this" not in trace.text
     assert [event["stage"] for event in trace_payload["events"]] == ["input", "output"]
+
+
+def test_verified_demo_database_supplies_real_chat_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GUARD_SQLITE_ROOT", raising=False)
+    created = client.post(
+        "/api/v1/connections",
+        headers=AUTH,
+        json={
+            "name": "SQLite chat demo",
+            "category": "database",
+            "connector": "sqlite",
+            "endpoint": "sqlite:///guard-ai-demo.db",
+        },
+    )
+    assert created.status_code == 201
+
+    tested = client.post(
+        f"/api/v1/connections/{created.json()['id']}/test",
+        headers=AUTH,
+    )
+    assert tested.status_code == 200
+    assert tested.json()["status"] == "verified"
+
+    chat = client.post(
+        "/api/v1/chat",
+        json={
+            "message": "Give me the connected data summary",
+            "data_connection_ids": [created.json()["id"]],
+        },
+    )
+    assert chat.status_code == 200
+    payload = chat.json()
+    assert "3 customers" in payload["response"]
+    assert "$5,133.00" in payload["response"]
+    assert payload["data_contexts"][0]["order_count"] == 4
+    assert payload["data_contexts"][0]["connector"] == "sqlite"
