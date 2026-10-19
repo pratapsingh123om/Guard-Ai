@@ -1,6 +1,6 @@
 Dockerfile
 requirements.txt
-demo/
+/demo/
 docs/
 eval/
 frontend/dist/
