@@ -54,6 +54,15 @@ The system is split into two tightly integrated pipelines:
 
 Management endpoints require a bearer token supplied through `GUARD_ADMIN_TOKEN`. See [the integration API guide](docs/integration-api.md) for request examples and the current storage limitations.
 
+### Vercel deployment
+
+The repository deploys the Vite dashboard and FastAPI service together on one
+Vercel origin. The checked-in `vercel.json` installs both runtimes, builds the
+dashboard into `public/`, and loads the API through the root `app.py` entrypoint.
+Configure `GUARD_ADMIN_TOKEN` in the Vercel project before using management
+endpoints. Add `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `SUPABASE_URL`, and
+`SUPABASE_ANON_KEY` there when those live integration checks are required.
+
 ## Security Control Plane
 
 The responsive Vite dashboard makes the integration boundary visible: operators can register AI providers and databases, run allowlisted read-only connectivity checks, select routes in the guarded playground, inspect secret-safe decision traces, and change runtime enforcement policies. The operator token is held in browser session storage only and connection credentials are write-only.

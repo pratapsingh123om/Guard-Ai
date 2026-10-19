@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "fastapi",
+  "installCommand": "python -m pip install -e . && npm --prefix frontend install",
+  "buildCommand": "node scripts/build_vercel.mjs",
+  "functions": {
+    "app.py": {
+      "excludeFiles": "{.git/**,.venv/**,venv/**,demo/**,docs/**,eval/**,frontend/**,public/**,backend/tests/**}"
+    }
+  }
+}

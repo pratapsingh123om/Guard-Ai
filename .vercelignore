@@ -1,0 +1,7 @@
+Dockerfile
+requirements.txt
+demo/
+docs/
+eval/
+frontend/dist/
+backend/tests/

@@ -27,7 +27,8 @@ class PromptInjectionGuardrail(Guardrail):
         ),
         "role_override": re.compile(r"\byou\s+are\s+now\s+(?:a|an|the)\b", re.IGNORECASE),
         "safety_bypass": re.compile(
-            r"\b(?:bypass|disable|circumvent)\b.{0,40}\b(?:safety|guardrail|policy|filter)\b",
+            r"\b(?:bypass|disable|circumvent|turn\s+off)\b.{0,40}"
+            r"\b(?:safety|security|guardrails?|policy|filter)\b",
             re.IGNORECASE,
         ),
     }
