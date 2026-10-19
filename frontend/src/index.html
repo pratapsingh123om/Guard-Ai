@@ -1,67 +1,143 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guard-AI | Enterprise Agent Security</title>
+    <meta name="description" content="Guard-AI security control plane for AI agents, tools, and data connections.">
+    <title>Guard-AI | Agent Security Control Plane</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./styles/base.css">
     <link rel="stylesheet" href="./styles/components.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-    <div class="app-container">
-        <!-- Sidebar Navigation -->
-        <aside class="sidebar">
-            <div class="logo">
-                <i class="fa-solid fa-shield-halved"></i> Guard-AI
-            </div>
-            <nav>
-                <a href="#" class="active" id="nav-chat"><i class="fa-solid fa-message"></i> Sandbox Chat</a>
-                <a href="#" id="nav-logs"><i class="fa-solid fa-list"></i> Telemetry Logs</a>
-                <a href="#" id="nav-docs"><i class="fa-solid fa-book"></i> API Docs</a>
+    <svg class="svg-sprite" aria-hidden="true">
+        <symbol id="icon-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+        <symbol id="icon-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v4a6 6 0 0 1-12 0V8Z"/></symbol>
+        <symbol id="icon-message" viewBox="0 0 24 24"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/><path d="M8 9h8M8 13h5"/></symbol>
+        <symbol id="icon-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+        <symbol id="icon-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M1 14h6M9 8h6M17 16h6"/></symbol>
+        <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-5"/></symbol>
+        <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+        <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+        <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+        <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+        <symbol id="icon-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7"/></symbol>
+        <symbol id="icon-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
+        <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V3h8v3M19 6l-1 15H6L5 6M10 11v6M14 11v6"/></symbol>
+        <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7h-5V2"/><path d="M20 7a9 9 0 1 0 1 8"/></symbol>
+        <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+        <symbol id="icon-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    </svg>
+
+    <div class="app-shell">
+        <aside class="sidebar" id="sidebar">
+            <div class="brand"><div class="brand-mark"><svg><use href="#icon-shield"></use></svg></div><div><strong>Guard-AI</strong><span>Security control plane</span></div></div>
+            <nav class="nav-list" aria-label="Main navigation">
+                <button class="nav-item active" data-view="overview"><svg><use href="#icon-grid"></use></svg><span>Overview</span></button>
+                <button class="nav-item" data-view="connections"><svg><use href="#icon-plug"></use></svg><span>Connections</span><span class="nav-count" id="nav-connection-count">0</span></button>
+                <button class="nav-item" data-view="playground"><svg><use href="#icon-message"></use></svg><span>Secure playground</span></button>
+                <button class="nav-item" data-view="activity"><svg><use href="#icon-activity"></use></svg><span>Security activity</span></button>
+                <button class="nav-item" data-view="policies"><svg><use href="#icon-sliders"></use></svg><span>Policy controls</span></button>
             </nav>
-            <div class="system-status">
-                <div class="status-indicator online"></div>
-                <span id="backend-status">Backend Connected</span>
-            </div>
+            <div class="sidebar-card"><div class="mini-shield"><svg><use href="#icon-shield"></use></svg></div><div><span>Transport profile</span><strong>X25519 + ML-KEM-768</strong><small>TLS 1.3 · mutual authentication</small></div></div>
+            <div class="sidebar-footer"><span class="health-dot" id="sidebar-health-dot"></span><div><strong id="sidebar-health-label">Checking backend</strong><small id="sidebar-health-url">Local control plane</small></div></div>
         </aside>
 
-        <!-- Main Content Area -->
-        <main class="main-content">
-            <!-- Chat View -->
-            <div id="view-chat" class="view-section active">
-                <header>
-                    <h2>Test your Guardrails</h2>
-                    <p>Send messages to the AI Agent. Watch the telemetry panel on the right to see guardrails in action.</p>
-                </header>
-                
-                <div class="workspace">
-                    <!-- Left: Chat UI -->
-                    <div class="chat-panel">
-                        <div class="chat-history" id="chat-history">
-                            <div class="message system">
-                                <div class="avatar"><i class="fa-solid fa-robot"></i></div>
-                                <div class="bubble">Hello! I am protected by Guard-AI. Try sending me PII or a prompt injection attack.</div>
-                            </div>
+        <div class="app-main">
+            <header class="topbar">
+                <button class="icon-button mobile-menu" id="mobile-menu" aria-label="Open navigation"><svg><use href="#icon-menu"></use></svg></button>
+                <div class="page-context"><span>CONTROL PLANE</span><h1 id="page-title">Overview</h1></div>
+                <div class="topbar-actions"><div class="live-pill"><span></span>Live enforcement</div><button class="operator-button" id="operator-button"><svg><use href="#icon-lock"></use></svg><span id="operator-label">Unlock console</span></button></div>
+            </header>
+
+            <main class="content">
+                <section class="view active" id="view-overview" data-title="Overview">
+                    <div class="hero-grid">
+                        <div class="hero-copy">
+                            <div class="eyebrow"><span></span>Agent security fabric</div>
+                            <h2>Connect your AI.<br><em>Guard every boundary.</em></h2>
+                            <p>Route agents, models, tools, and data through one observable enforcement layer—before untrusted input becomes an action.</p>
+                            <div class="hero-actions"><button class="button primary" data-action="connect"><svg><use href="#icon-plus"></use></svg>Connect a service</button><button class="button ghost" data-action="playground">Open playground<svg><use href="#icon-arrow"></use></svg></button></div>
                         </div>
-                        <div class="chat-input-area">
-                            <input type="text" id="chat-input" placeholder="Type a message (e.g. 'ignore all previous instructions' or 'my email is admin@corp.com')">
-                            <button id="send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+                        <div class="network-map" aria-label="Guard-AI connection architecture">
+                            <div class="map-label">LIVE TRUST PATH</div>
+                            <div class="map-node source-node"><span class="node-icon"><svg><use href="#icon-cpu"></use></svg></span><span><small>CLIENT LAYER</small><strong>Agents & apps</strong></span></div>
+                            <div class="map-line line-left"><i></i></div>
+                            <div class="guard-core"><div class="core-ring ring-one"></div><div class="core-ring ring-two"></div><div class="core-shield"><svg><use href="#icon-shield"></use></svg></div><strong>GUARD-AI</strong><small>Policy gateway</small></div>
+                            <div class="map-line line-right-top"><i></i></div><div class="map-line line-right-bottom"><i></i></div>
+                            <div class="map-node target-node ai-node"><span class="node-icon violet"><svg><use href="#icon-cpu"></use></svg></span><span><small>MODEL LAYER</small><strong id="map-ai-label">AI providers</strong></span><b id="map-ai-state">Not connected</b></div>
+                            <div class="map-node target-node data-node"><span class="node-icon amber"><svg><use href="#icon-database"></use></svg></span><span><small>DATA LAYER</small><strong id="map-data-label">Databases & tools</strong></span><b id="map-data-state">Not connected</b></div>
+                            <div class="map-protocols"><span>PQC HYBRID</span><span>mTLS</span><span>JWT BINDING</span></div>
                         </div>
                     </div>
 
-                    <!-- Right: Live Telemetry -->
-                    <div class="telemetry-panel">
-                        <h3><i class="fa-solid fa-satellite-dish"></i> Live Guardrail Activity</h3>
-                        <div class="telemetry-feed" id="telemetry-feed">
-                            <div class="empty-state">No activity yet. Send a message to start telemetry.</div>
-                        </div>
+                    <div class="metric-grid">
+                        <article class="metric-card"><div><span>Verified connections</span><strong id="metric-verified">0</strong></div><div class="metric-icon mint"><svg><use href="#icon-plug"></use></svg></div><small id="metric-connections-note">Unlock to load integrations</small></article>
+                        <article class="metric-card"><div><span>Guarded requests</span><strong id="metric-requests">0</strong></div><div class="metric-icon blue"><svg><use href="#icon-activity"></use></svg></div><small>Secret-safe traces retained locally</small></article>
+                        <article class="metric-card"><div><span>Policy revision</span><strong id="metric-policy">—</strong></div><div class="metric-icon purple"><svg><use href="#icon-sliders"></use></svg></div><small id="metric-policy-note">Runtime policy state</small></article>
+                        <article class="metric-card"><div><span>Transport controls</span><strong>5/5</strong></div><div class="metric-icon amber"><svg><use href="#icon-shield"></use></svg></div><small>TLS 1.3 + post-quantum profile</small></article>
                     </div>
-                </div>
-            </div>
-        </main>
+
+                    <div class="overview-lower">
+                        <section class="panel posture-panel">
+                            <div class="panel-heading"><div><span class="kicker">SECURITY POSTURE</span><h3>Defense in depth</h3></div><span class="score-chip">5 controls active</span></div>
+                            <div class="control-list">
+                                <div class="control-row"><span class="control-check"><svg><use href="#icon-check"></use></svg></span><div><strong>Hybrid post-quantum key exchange</strong><small>Classical X25519 combined with ML-KEM-768</small></div><b>Required</b></div>
+                                <div class="control-row"><span class="control-check"><svg><use href="#icon-check"></use></svg></span><div><strong>Mutual workload identity</strong><small>Per-service certificates, no shared agent identity</small></div><b>Enforced</b></div>
+                                <div class="control-row"><span class="control-check"><svg><use href="#icon-check"></use></svg></span><div><strong>Runtime guardrail pipeline</strong><small>Input, retrieval, action, and output enforcement</small></div><b>Active</b></div>
+                                <div class="control-row"><span class="control-check"><svg><use href="#icon-check"></use></svg></span><div><strong>Credential-safe observability</strong><small>Decision metadata retained without prompt or secret bodies</small></div><b>Recording</b></div>
+                            </div>
+                        </section>
+                        <section class="panel quickstart-panel">
+                            <div class="panel-heading"><div><span class="kicker">QUICK START</span><h3>Bring your own stack</h3></div></div>
+                            <ol class="step-list"><li><span>01</span><div><strong>Unlock the operator console</strong><small>Use your local GUARD_ADMIN_TOKEN.</small></div></li><li><span>02</span><div><strong>Import or add connections</strong><small>Credentials stay write-only in the backend.</small></div></li><li><span>03</span><div><strong>Verify, route, and observe</strong><small>Test the trust path and inspect decisions.</small></div></li></ol>
+                            <button class="text-button" id="quickstart-button">Start connection setup<svg><use href="#icon-arrow"></use></svg></button>
+                        </section>
+                    </div>
+                </section>
+
+                <section class="view" id="view-connections" data-title="Connections">
+                    <div class="section-header"><div><span class="kicker">INTEGRATION REGISTRY</span><h2>Connect agents to the systems they use</h2><p>Add an AI provider, database, MCP server, or API. Secrets are accepted once and never returned.</p></div><div class="section-actions"><button class="button ghost" id="import-env-button"><svg><use href="#icon-refresh"></use></svg>Import configured services</button><button class="button primary" id="add-connection-button"><svg><use href="#icon-plus"></use></svg>Add connection</button></div></div>
+                    <div class="filter-row" id="connection-filters"><button class="filter-chip active" data-filter="all">All <span id="filter-all-count">0</span></button><button class="filter-chip" data-filter="ai_provider">AI providers</button><button class="filter-chip" data-filter="database">Data stores</button><button class="filter-chip" data-filter="other">Tools & APIs</button></div>
+                    <div class="connection-grid" id="connection-grid"></div>
+                    <div class="empty-panel" id="connections-empty"><div class="empty-visual"><span></span><svg><use href="#icon-plug"></use></svg></div><h3>No services connected yet</h3><p>Import your server configuration or create a connection manually to build a guarded trust path.</p><button class="button primary" data-action="connect"><svg><use href="#icon-plus"></use></svg>Connect first service</button></div>
+                </section>
+
+                <section class="view" id="view-playground" data-title="Secure playground">
+                    <div class="section-header compact"><div><span class="kicker">POLICY SIMULATION</span><h2>See every guardrail decision</h2><p>Select a route, send a request, and inspect the security stages before any external action.</p></div><span class="mode-badge">No tools executed</span></div>
+                    <div class="route-builder"><div class="route-field"><label for="ai-route-select">AI destination</label><select id="ai-route-select"><option value="">Guardrail-only simulation</option></select></div><div class="route-arrow"><svg><use href="#icon-arrow"></use></svg></div><div class="route-center"><span><svg><use href="#icon-shield"></use></svg></span><div><strong>Guard-AI policy gateway</strong><small>inspect → sanitize → authorize → redact</small></div></div><div class="route-arrow"><svg><use href="#icon-arrow"></use></svg></div><div class="route-field"><label for="data-route-select">Data context</label><select id="data-route-select"><option value="">No data connection</option></select></div></div>
+                    <div class="playground-grid">
+                        <section class="chat-card panel"><div class="chat-header"><div class="agent-avatar">GA</div><div><strong>Guarded agent</strong><span><i></i>Policy pipeline online</span></div><button class="icon-button" id="clear-chat" title="Clear conversation"><svg><use href="#icon-refresh"></use></svg></button></div><div class="chat-history" id="chat-history"><div class="message system"><div class="message-avatar"><svg><use href="#icon-shield"></use></svg></div><div><span>Guard-AI</span><p>I’m ready. Try a normal request, a prompt injection, sensitive output, or a risky action.</p></div></div></div><form class="composer" id="chat-form"><textarea id="chat-input" rows="1" maxlength="100000" placeholder="Send a request through the security boundary…"></textarea><button type="submit" class="send-button" aria-label="Send request"><svg><use href="#icon-arrow"></use></svg></button><div class="composer-meta"><span>Enter to send · Shift+Enter for a new line</span><span id="char-count">0 / 100k</span></div></form></section>
+                        <aside class="decision-panel panel"><div class="panel-heading"><div><span class="kicker">LIVE TRACE</span><h3>Decision timeline</h3></div><span class="trace-status neutral" id="trace-status">Waiting</span></div><div class="decision-summary" id="decision-summary"><div class="summary-shield"><svg><use href="#icon-shield"></use></svg></div><strong>No request inspected</strong><p>Guardrail results will appear here without retaining raw prompt content.</p></div><div class="decision-timeline" id="decision-timeline"></div><div class="trace-reference" id="trace-reference" hidden><span>Trace ID</span><code id="trace-id"></code></div></aside>
+                    </div>
+                </section>
+
+                <section class="view" id="view-activity" data-title="Security activity">
+                    <div class="section-header"><div><span class="kicker">SECRET-SAFE OBSERVABILITY</span><h2>Security decisions, not sensitive content</h2><p>Review pipeline stages, severity, and routing metadata. Prompt bodies and credentials are deliberately omitted.</p></div><button class="button ghost" id="refresh-activity"><svg><use href="#icon-refresh"></use></svg>Refresh activity</button></div>
+                    <div class="activity-stats"><div><span>Total traces</span><strong id="activity-total">0</strong></div><div><span>Allowed</span><strong id="activity-allowed">0</strong></div><div><span>Blocked</span><strong id="activity-blocked">0</strong></div><div><span>Needs approval</span><strong id="activity-approval">0</strong></div></div>
+                    <section class="panel trace-table-panel"><div class="table-header"><span>Time</span><span>Decision</span><span>Route</span><span>Guardrail events</span><span>Trace ID</span></div><div id="trace-table" class="trace-table"></div><div class="table-empty" id="traces-empty"><svg><use href="#icon-activity"></use></svg><strong>No traces recorded</strong><span>Use the secure playground to generate your first policy decision.</span></div></section>
+                </section>
+
+                <section class="view" id="view-policies" data-title="Policy controls">
+                    <div class="section-header"><div><span class="kicker">RUNTIME ENFORCEMENT</span><h2>Control the agent security boundary</h2><p>Changes apply immediately to new requests and are recorded as a new policy revision.</p></div><div class="revision-card"><span>Current revision</span><strong id="policy-revision">—</strong></div></div>
+                    <div class="policy-layout">
+                        <section class="panel policy-panel"><div class="panel-heading"><div><span class="kicker">GUARDRAIL LAYERS</span><h3>Runtime policy</h3></div><span class="autosave-label">Auto-save</span></div><div class="policy-list" id="policy-list"><label class="policy-row"><span class="policy-symbol input">IN</span><span><strong>Block prompt injection</strong><small>Reject instruction override, role hijacking, and obfuscation patterns.</small></span><input type="checkbox" data-policy="block_prompt_injection"><i></i></label><label class="policy-row"><span class="policy-symbol retrieval">RT</span><span><strong>Sanitize retrieved content</strong><small>Neutralize instructions embedded inside documents and tool results.</small></span><input type="checkbox" data-policy="sanitize_retrieved_content"><i></i></label><label class="policy-row"><span class="policy-symbol action">AC</span><span><strong>Require approval for risky actions</strong><small>Pause high-impact operations before execution.</small></span><input type="checkbox" data-policy="require_approval_for_risky_actions"><i></i></label><label class="policy-row"><span class="policy-symbol output">OUT</span><span><strong>Redact sensitive output</strong><small>Remove PII and secrets before a response crosses the boundary.</small></span><input type="checkbox" data-policy="redact_sensitive_output"><i></i></label></div></section>
+                        <section class="panel transport-panel"><div class="panel-heading"><div><span class="kicker">TRANSPORT PROFILE</span><h3>Cryptographic controls</h3></div><span class="locked-chip"><svg><use href="#icon-lock"></use></svg>Fail closed</span></div><div class="transport-visual"><div class="transport-ring"><div><svg><use href="#icon-shield"></use></svg></div></div><strong>Quantum-resistant session</strong><span id="transport-group">X25519MLKEM768</span></div><div class="transport-list"><div><span>TLS protocol</span><strong id="transport-tls">TLS 1.3</strong></div><div><span>Mutual authentication</span><strong class="positive">Required</strong></div><div><span>Certificate-bound tokens</span><strong class="positive">Enabled</strong></div><div><span>Classical-only fallback</span><strong class="negative">Denied</strong></div></div></section>
+                    </div>
+                </section>
+            </main>
+        </div>
     </div>
-    
+
+    <dialog class="modal" id="operator-modal"><form method="dialog" class="modal-card" id="operator-form"><button class="modal-close icon-button" id="operator-modal-close" type="button" aria-label="Close"><svg><use href="#icon-x"></use></svg></button><div class="modal-icon"><svg><use href="#icon-lock"></use></svg></div><span class="kicker">OPERATOR ACCESS</span><h2>Unlock the control plane</h2><p>Enter the <code>GUARD_ADMIN_TOKEN</code> configured on this server. It stays in this browser tab and is never written to local storage.</p><label class="field"><span>Operator token</span><input type="password" id="operator-token" autocomplete="current-password" minlength="32" placeholder="Paste your generated token" required></label><div class="modal-note"><svg><use href="#icon-shield"></use></svg><span>Session-only credential · cleared when this tab closes</span></div><button class="button primary full" type="submit">Unlock console<svg><use href="#icon-arrow"></use></svg></button></form></dialog>
+
+    <dialog class="modal wide" id="connection-modal"><div class="modal-card connection-modal-card"><button class="modal-close icon-button" id="connection-modal-close" aria-label="Close"><svg><use href="#icon-x"></use></svg></button><div class="modal-progress"><span class="active">1</span><i></i><span>2</span></div><div id="connector-step"><span class="kicker">NEW CONNECTION</span><h2>What do you want to protect?</h2><p>Choose the service an agent will reach through Guard-AI.</p><div class="connector-tabs" id="connector-tabs"></div><div class="connector-picker" id="connector-picker"></div></div><form id="connection-form" hidden><button type="button" class="back-button" id="connector-back">← Back to connectors</button><div class="selected-connector" id="selected-connector"></div><div class="form-grid"><label class="field"><span>Connection name</span><input id="connection-name" maxlength="80" required placeholder="Production service"></label><label class="field full-span"><span>Endpoint</span><input id="connection-endpoint" maxlength="2048" required placeholder="https://service.example.com"><small>Credentials must not be included in the URL.</small></label><div id="connector-settings" class="form-grid nested full-span"></div><div id="connector-credentials" class="form-grid nested full-span"></div></div><div class="credential-notice"><svg><use href="#icon-lock"></use></svg><div><strong>Write-only credentials</strong><span>Secret values are sent directly to the backend and are never returned by the API.</span></div></div><button class="button primary full" type="submit" id="save-connection">Save connection<svg><use href="#icon-arrow"></use></svg></button></form></div></dialog>
+
+    <dialog class="modal" id="confirm-modal"><form method="dialog" class="modal-card confirm-card"><div class="modal-icon danger"><svg><use href="#icon-trash"></use></svg></div><h2>Remove connection?</h2><p id="confirm-copy">The stored credentials will be cleared from Guard-AI memory.</p><div class="confirm-actions"><button class="button ghost" value="cancel">Cancel</button><button class="button danger-button" value="confirm">Remove connection</button></div></form></dialog>
+
+    <div class="toast-region" id="toast-region" aria-live="polite"></div><div class="mobile-backdrop" id="mobile-backdrop"></div>
     <script type="module" src="./js/app.js"></script>
 </body>
 </html>

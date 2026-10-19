@@ -2,7 +2,8 @@ venv/
 .venv/
 __pycache__/
 *.pyc
-.env
+.env*
 .git/
 frontend/
 eval/
+demo/secure-mcp/runtime/

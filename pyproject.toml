@@ -9,7 +9,11 @@ description = "Provider-neutral runtime guardrails and adversarial evaluations f
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "cryptography>=48,<51",
   "fastapi>=0.115,<1",
+  "httpx>=0.28,<1",
+  "mcp>=2.3,<3",
+  "PyJWT[crypto]>=2.10,<3",
   "pydantic>=2.10,<3",
   "uvicorn[standard]>=0.32,<1"
 ]

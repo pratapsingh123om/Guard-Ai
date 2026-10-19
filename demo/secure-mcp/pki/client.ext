@@ -1,0 +1,6 @@
+basicConstraints=critical,CA:FALSE
+keyUsage=critical,digitalSignature
+extendedKeyUsage=clientAuth
+subjectAltName=URI:spiffe://guard-ai.demo/agent/coordinator
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer

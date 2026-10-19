@@ -9,6 +9,9 @@ __pycache__/
 htmlcov/
 build/
 dist/
+node_modules/
+frontend/node_modules/
+frontend/dist/
 
 # IDEs
 .vscode/
@@ -16,9 +19,17 @@ dist/
 
 # Environment Variables (Secrets!)
 .env
+.env.integrations
 
 # MacOS
 .DS_Store
 
 # Generated evaluation reports
 eval/reports/
+
+# Secure MCP demo runtime material
+demo/secure-mcp/runtime/*
+!demo/secure-mcp/runtime/.gitignore
+
+# Generated local integration database
+demo/integration-data/*.db

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "node node_modules/vite/bin/vite.js build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "check": "node --check src/js/api.js && node --check src/js/app.js",
+    "test": "npm run check"
   },
   "keywords": [],
   "author": "",

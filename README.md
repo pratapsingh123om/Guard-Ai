@@ -27,19 +27,42 @@ The system is split into two tightly integrated pipelines:
 
 2. **Run the API**:
    ```bash
-   uvicorn backend.app.main:app --reload
+   uvicorn backend.app.main:app --host 127.0.0.1 --port 8080 --reload
    ```
 
-3. **Run Evaluations**:
+3. **Run the dashboard**:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+   Open `http://127.0.0.1:5173`, unlock it with `GUARD_ADMIN_TOKEN`, and use **Import configured services** to discover supported integrations from `.env.integrations` without copying their credentials into the browser.
+
+4. **Run Evaluations**:
    ```bash
    python eval/harness/run_eval.py
    ```
 
 ## API Endpoints
 - `GET /health` : API status
-- `POST /chat` : AI Agent interaction with full guardrails (Prompt Injection check -> LLM -> PII Scrub)
+- `POST /chat` : Provider-neutral guardrail pipeline and trace generation
+- `GET/POST /api/v1/connections` : Register and list masked AI/data connection metadata
+- `POST /api/v1/connections/import-env` : Import supported server-side integrations without returning secrets
+- `POST /api/v1/connections/{id}/test` : Validate a connection configuration
+- `GET/PUT /api/v1/policies` : Inspect or update runtime guardrail policy
+- `GET /api/v1/traces` : Inspect secret-safe security traces
+
+Management endpoints require a bearer token supplied through `GUARD_ADMIN_TOKEN`. See [the integration API guide](docs/integration-api.md) for request examples and the current storage limitations.
+
+## Security Control Plane
+
+The responsive Vite dashboard makes the integration boundary visible: operators can register AI providers and databases, run allowlisted read-only connectivity checks, select routes in the guarded playground, inspect secret-safe decision traces, and change runtime enforcement policies. The operator token is held in browser session storage only and connection credentials are write-only.
+
+## Secure MCP + PQC Demo
+
+The repository includes an end-to-end MCP demo with TLS 1.3, hybrid X25519/ML-KEM-768 key exchange, mTLS agent identity, certificate-bound tokens, per-tool authorization, and replay protection. See [demo/secure-mcp/README.md](demo/secure-mcp/README.md) for setup and verification commands.
 
 ## Future Roadmap
 - Integration with Open Policy Agent (OPA) for risk configuration
 - Advanced vector database injection attacks (e.g. via `pgvector`)
-- React/Vite admin dashboard for monitoring guardrail triggers in real-time.
+- Encrypted persistent connection metadata backed by an external secret manager

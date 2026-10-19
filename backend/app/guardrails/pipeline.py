@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any, Mapping, Sequence
 
@@ -11,6 +11,7 @@ from backend.app.guardrails.base import GuardrailAction, GuardrailResult
 from backend.app.guardrails.input import PromptInjectionGuardrail
 from backend.app.guardrails.output import SensitiveDataGuardrail
 from backend.app.guardrails.retrieval import DocumentSanitizer
+from backend.app.policy.runtime import runtime_policy_store
 
 
 class PipelineStatus(str, Enum):
@@ -49,21 +50,56 @@ class GuardrailPipeline:
     ) -> PipelineDecision:
         """Run all checks that must finish before an agent can cause effects."""
 
+        policy = runtime_policy_store.snapshot().policy
         results: list[GuardrailResult] = []
-        input_result = self.input_guardrail.check(message)
+        input_result = (
+            self.input_guardrail.check(message)
+            if policy.block_prompt_injection
+            else GuardrailResult(
+                guardrail=self.input_guardrail.name,
+                category=self.input_guardrail.category,
+                passed=True,
+                action=GuardrailAction.ALLOW,
+                reason="Prompt-injection blocking is disabled by runtime policy.",
+                metadata={"policy_disabled": True},
+            )
+        )
         results.append(input_result)
         if input_result.action is GuardrailAction.BLOCK:
             return PipelineDecision(PipelineStatus.BLOCKED, tuple(results), ())
 
         sanitized_documents: list[str] = []
         for document in documents:
-            result = self.document_guardrail.check(document)
+            result = (
+                self.document_guardrail.check(document)
+                if policy.sanitize_retrieved_content
+                else GuardrailResult(
+                    guardrail=self.document_guardrail.name,
+                    category=self.document_guardrail.category,
+                    passed=True,
+                    action=GuardrailAction.ALLOW,
+                    reason="Retrieval sanitization is disabled by runtime policy.",
+                    transformed_content=document,
+                    metadata={"policy_disabled": True},
+                )
+            )
             results.append(result)
             sanitized_documents.append(result.transformed_content or "")
 
         status = PipelineStatus.ALLOWED
         for action in proposed_actions:
             result = self.action_guardrail.check(action)
+            if (
+                result.action is GuardrailAction.REQUIRE_APPROVAL
+                and not policy.require_approval_for_risky_actions
+            ):
+                result = replace(
+                    result,
+                    passed=True,
+                    action=GuardrailAction.ALLOW,
+                    reason="Risk-based approval is disabled by runtime policy.",
+                    metadata={**result.metadata, "policy_disabled": True},
+                )
             results.append(result)
             if result.action is GuardrailAction.BLOCK:
                 status = PipelineStatus.BLOCKED
@@ -73,4 +109,14 @@ class GuardrailPipeline:
         return PipelineDecision(status, tuple(results), tuple(sanitized_documents))
 
     def inspect_output(self, response: str) -> GuardrailResult:
-        return self.output_guardrail.check(response)
+        if runtime_policy_store.snapshot().policy.redact_sensitive_output:
+            return self.output_guardrail.check(response)
+        return GuardrailResult(
+            guardrail=self.output_guardrail.name,
+            category=self.output_guardrail.category,
+            passed=True,
+            action=GuardrailAction.ALLOW,
+            reason="Sensitive-output redaction is disabled by runtime policy.",
+            transformed_content=response,
+            metadata={"policy_disabled": True},
+        )
