@@ -21,6 +21,8 @@
     { "src": "/mcp(.*)", "dest": "app.py" },
     { "src": "/docs", "dest": "app.py" },
     { "src": "/openapi.json", "dest": "app.py" },
-    { "src": "/(.*)", "dest": "frontend/dist/$1" }
+    { "src": "/assets/(.*)", "dest": "frontend/assets/$1" },
+    { "src": "/", "dest": "frontend/index.html" },
+    { "src": "/(.*)", "dest": "frontend/$1" }
   ]
 }
