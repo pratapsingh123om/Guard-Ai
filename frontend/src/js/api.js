@@ -1,4 +1,5 @@
-const configuredBase = (import.meta.env.VITE_API_URL || (
+const deployedOnVercel = window.location.hostname.endsWith('.vercel.app');
+const configuredBase = ((!deployedOnVercel && import.meta.env.VITE_API_URL) || (
     window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         ? 'http://127.0.0.1:8080'
         : ''

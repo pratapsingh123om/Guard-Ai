@@ -1,11 +1,26 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "fastapi",
-  "installCommand": "python -m pip install -e . && npm --prefix frontend install",
-  "buildCommand": "node scripts/build_vercel.mjs",
-  "functions": {
-    "app.py": {
-      "excludeFiles": "{.git/**,.venv/**,venv/**,demo/**,docs/**,eval/**,frontend/**,public/**,backend/tests/**}"
+  "version": 2,
+  "builds": [
+    {
+      "src": "app.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
     }
-  }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "app.py" },
+    { "src": "/chat", "dest": "app.py" },
+    { "src": "/health", "dest": "app.py" },
+    { "src": "/mcp(.*)", "dest": "app.py" },
+    { "src": "/docs", "dest": "app.py" },
+    { "src": "/openapi.json", "dest": "app.py" },
+    { "src": "/(.*)", "dest": "frontend/dist/$1" }
+  ]
 }

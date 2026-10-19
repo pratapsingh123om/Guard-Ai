@@ -57,8 +57,8 @@ Management endpoints require a bearer token supplied through `GUARD_ADMIN_TOKEN`
 ### Vercel deployment
 
 The repository deploys the Vite dashboard and FastAPI service together on one
-Vercel origin. The checked-in `vercel.json` installs both runtimes, builds the
-dashboard into `public/`, and loads the API through the root `app.py` entrypoint.
+Vercel origin. The checked-in `vercel.json` builds the frontend with Vercel's
+static builder and routes API traffic through the root `app.py` entrypoint.
 Configure `GUARD_ADMIN_TOKEN` in the Vercel project before using management
 endpoints. Add `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `SUPABASE_URL`, and
 `SUPABASE_ANON_KEY` there when those live integration checks are required.
