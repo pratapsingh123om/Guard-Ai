@@ -1,6 +1,6 @@
 # Guard-AI: Enterprise Agent Guardrails
 
-Guard-AI is a comprehensive, evaluated guardrail architecture designed to secure autonomous AI agents in production environments. It sits between the user, the agent, and the outside world to mitigate the four primary categories of LLM risk.
+Guard-AI is an evaluated security-gateway prototype for AI agents. It sits between the user, the model, data connectors, and tool calls so each boundary can be authenticated, authorized, inspected, and traced. The included in-memory registry is a demonstration component, not production secret storage.
 
 ## Core Security Features
 
@@ -36,25 +36,31 @@ The system is split into two tightly integrated pipelines:
    npm install
    npm run dev
    ```
-   Open `http://127.0.0.1:5173`, unlock it with `GUARD_ADMIN_TOKEN`, and use **Import configured services** to discover supported integrations from `.env.integrations` without copying their credentials into the browser.
+   Open `http://127.0.0.1:5173`. Sign in with Google for an isolated workspace, use the limited guest playground, or open the legacy operator recovery section. Google and guest sessions are issued by Supabase Auth.
 
 4. **Run Evaluations**:
    ```bash
    python eval/harness/run_eval.py
+   python eval/harness/run_semantic_intent_eval.py
    ```
 
 ## API Endpoints
 - `GET /health` : API status
+- `GET /api/v1/auth/config|me` : Browser auth bootstrap and current identity
+- `POST /api/v1/auth/tokens` : Mint an expiring personal Guard-AI bearer token
 - `GET /api/v1/demo/health` : Live demo-service and SQLite readiness check
 - `GET /api/v1/demo/summary|customers|orders` : Read-only synthetic demo data
-- `POST /chat` : Provider-neutral guardrail pipeline and trace generation
+- `POST /api/v1/chat` : Authenticated guardrail pipeline, optional live OpenRouter generation, and trace creation
 - `GET/POST /api/v1/connections` : Register and list masked AI/data connection metadata
 - `POST /api/v1/connections/import-env` : Import supported server-side integrations without returning secrets
 - `POST /api/v1/connections/{id}/test` : Validate a connection configuration
 - `GET/PUT /api/v1/policies` : Inspect or update runtime guardrail policy
 - `GET /api/v1/traces` : Inspect secret-safe security traces
 
-Management endpoints require a bearer token supplied through `GUARD_ADMIN_TOKEN`. See [the integration API guide](docs/integration-api.md) for request examples and the current storage limitations.
+Management endpoints accept an active Supabase user session, a personal `gai_` token, or the legacy `GUARD_ADMIN_TOKEN`. Anonymous sessions are restricted to a bounded playground trial. See [the integration API guide](docs/integration-api.md) for request examples and current storage limitations.
+
+See [authentication setup](docs/auth-setup.md) for the required Google,
+Supabase, redirect, and Vercel settings.
 
 ## Test a real service and database
 
@@ -76,13 +82,18 @@ All demo records are synthetic.
 The repository deploys the Vite dashboard and FastAPI service together on one
 Vercel origin. The checked-in `vercel.json` builds the frontend with Vercel's
 static builder and routes API traffic through the root `app.py` entrypoint.
-Configure `GUARD_ADMIN_TOKEN` in the Vercel project before using management
-endpoints. Add `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `SUPABASE_URL`, and
-`SUPABASE_ANON_KEY` there when those live integration checks are required.
+Configure `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (or the legacy
+`SUPABASE_ANON_KEY`), and a separate `GUARD_API_TOKEN_SECRET` in Vercel for
+Google/guest access and personal tokens. Add `OPENROUTER_API_KEY` and a paid or
+adequately rate-limited `GUARD_JUDGE_MODEL` for semantic enforcement. The
+semantic judge fails closed before live provider/data invocation; a
+guardrail-only simulation is explicitly marked degraded when the judge is
+unavailable. `GUARD_ADMIN_TOKEN` remains an optional recovery identity and is
+the only identity allowed to import server-owned environment secrets.
 
 ## Security Control Plane
 
-The responsive Vite dashboard makes the integration boundary visible: operators can register AI providers and databases, run allowlisted read-only connectivity checks, select routes in the guarded playground, inspect secret-safe decision traces, and change runtime enforcement policies. The operator token is held in browser session storage only and connection credentials are write-only.
+The responsive Vite dashboard makes the integration boundary visible: authenticated users can register their own AI providers and databases, run allowlisted read-only connectivity checks, select routes in the guarded playground, inspect secret-safe decision traces, create expiring API tokens, and change their own runtime policy. Tenant ownership is enforced by the backend; credentials are write-only.
 
 ## Secure MCP + PQC Demo
 

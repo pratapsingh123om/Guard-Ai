@@ -16,6 +16,22 @@ class ActionRiskGuardrail(Guardrail):
     """
     name = "risk_classifier_guardrail"
     category = "action"
+
+    _destructive_intent_patterns = (
+        re.compile(
+            r"\b(?:delete|destroy|erase|wipe|purge|drop|truncate|remove)\b"
+            r".{0,48}\b(?:all|everything|database|table|files?|records?|accounts?|users?|data)\b",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\b(?:delete|destroy|erase|wipe|purge|drop|truncate|remove)\s+everything\b",
+            re.IGNORECASE,
+        ),
+    )
+    _financial_intent_pattern = re.compile(
+        r"\b(?:pay|transfer|send)\b.{0,40}(?:\$|usd|eur|gbp|inr|money|funds?|payment)",
+        re.IGNORECASE,
+    )
     
     def __init__(self) -> None:
         policy_path = files("backend.app.policy").joinpath("policies.json")
@@ -24,6 +40,33 @@ class ActionRiskGuardrail(Guardrail):
             (item["name"], re.compile(item["pattern"], re.IGNORECASE))
             for item in self.policy["blocked_argument_patterns"]
         )
+
+    def check_message_intent(self, message: str) -> GuardrailResult | None:
+        """Surface high-impact intent even when no structured tool call was supplied."""
+
+        if any(pattern.search(message) for pattern in self._destructive_intent_patterns):
+            return GuardrailResult(
+                guardrail=self.name,
+                category=self.category,
+                passed=False,
+                action=GuardrailAction.REQUIRE_APPROVAL,
+                severity=Severity.CRITICAL,
+                reason="Destructive natural-language intent requires explicit approval.",
+                matched_rules=("destructive_intent",),
+                metadata={"risk": "critical", "source": "natural_language"},
+            )
+        if self._financial_intent_pattern.search(message):
+            return GuardrailResult(
+                guardrail=self.name,
+                category=self.category,
+                passed=False,
+                action=GuardrailAction.REQUIRE_APPROVAL,
+                severity=Severity.CRITICAL,
+                reason="Financial natural-language intent requires explicit approval.",
+                matched_rules=("financial_intent",),
+                metadata={"risk": "critical", "source": "natural_language"},
+            )
+        return None
 
     def check(self, context: Mapping[str, Any]) -> GuardrailResult:
         if not isinstance(context, Mapping):

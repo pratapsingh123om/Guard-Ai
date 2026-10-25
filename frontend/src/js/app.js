@@ -3,7 +3,9 @@ import {
     apiLocation,
     checkHealth,
     createConnection,
+    createPersonalToken,
     deleteConnection,
+    getCurrentIdentity,
     getConnectionCatalog,
     getPolicies,
     importEnvironmentConnections,
@@ -13,10 +15,19 @@ import {
     testConnection,
     updatePolicies,
 } from './api.js';
+import {
+    initializeAuth,
+    signInAsGuest,
+    signInWithGoogle,
+    signOut,
+} from './auth.js';
 
 const SESSION_TOKEN_KEY = 'guard_ai_operator_token';
 const state = {
     token: sessionStorage.getItem(SESSION_TOKEN_KEY) || '',
+    session: null,
+    principal: null,
+    authConfigured: false,
     catalog: [],
     connections: [],
     traces: [],
@@ -92,13 +103,20 @@ function showToast(title, message, type = 'success') {
 function describeError(error) {
     if (error instanceof ApiError) return error.message;
     if (error instanceof TypeError) return 'The backend could not be reached.';
+    if (error?.message) return error.message;
     return 'An unexpected error occurred.';
 }
 
 function handleAuthError(error) {
-    if (error instanceof ApiError && (error.status === 401 || error.status === 503)) {
-        lockConsole(false);
-        showToast('Operator access required', error.message, 'error');
+    if (error instanceof ApiError && error.status === 401) {
+        clearIdentity();
+        signOut().catch(() => {});
+        showToast('Sign-in required', error.message, 'error');
+        openOperatorModal();
+        return true;
+    }
+    if (error instanceof ApiError && error.status === 403) {
+        showToast('Google sign-in required', error.message, 'error');
         openOperatorModal();
         return true;
     }
@@ -113,11 +131,16 @@ function navigate(viewName) {
     $('#page-title').textContent = target.dataset.title || viewName;
     $('#sidebar').classList.remove('open');
     $('#mobile-backdrop').classList.remove('open');
-    if (viewName === 'activity' && state.token) refreshTraces();
+    if (viewName === 'activity' && state.token && !state.principal?.is_anonymous) refreshTraces();
 }
 
 function requireOperator(action) {
     if (!state.token) {
+        openOperatorModal();
+        return false;
+    }
+    if (state.principal?.is_anonymous) {
+        showToast('Guest trial is playground-only', 'Sign in with Google to connect services and manage policy.', 'error');
         openOperatorModal();
         return false;
     }
@@ -128,31 +151,41 @@ function requireOperator(action) {
 function openOperatorModal() {
     $('#operator-token').value = '';
     $('#operator-modal').showModal();
-    window.setTimeout(() => $('#operator-token').focus(), 50);
 }
 
 function updateOperatorUi() {
     const button = $('#operator-button');
     const unlocked = Boolean(state.token);
     button.classList.toggle('unlocked', unlocked);
-    $('#operator-label').textContent = unlocked ? 'Operator unlocked' : 'Unlock console';
+    $('#operator-label').textContent = state.principal?.email
+        || (state.principal?.is_anonymous ? 'Guest trial' : unlocked ? 'Operator session' : 'Sign in');
+    $('#import-env-button').hidden = state.principal?.auth_method !== 'legacy_admin';
 }
 
-function lockConsole(notify = true) {
+function clearIdentity() {
     state.token = '';
+    state.session = null;
+    state.principal = null;
     state.connections = [];
     state.traces = [];
     state.policies = null;
     sessionStorage.removeItem(SESSION_TOKEN_KEY);
     updateOperatorUi();
     renderAll();
-    if (notify) showToast('Console locked', 'The operator token was cleared from this tab.');
+}
+
+async function logOut() {
+    await signOut();
+    clearIdentity();
+    $('#account-modal').close();
+    showToast('Signed out', 'This browser no longer has access to your Guard-AI workspace.');
 }
 
 async function unlockConsole(token) {
     const prior = state.token;
     state.token = token;
     try {
+        state.principal = await getCurrentIdentity(token);
         const [connections, policies, traces] = await Promise.all([
             listConnections(token), getPolicies(token), listTraces(token),
         ]);
@@ -163,15 +196,81 @@ async function unlockConsole(token) {
         updateOperatorUi();
         renderAll();
         $('#operator-modal').close();
-        showToast('Console unlocked', 'Private connection, policy, and trace data is now available.');
+        showToast('Operator session active', 'Private connection, policy, and trace data is now available.');
     } catch (error) {
         state.token = prior;
         throw error;
     }
 }
 
+async function activateSupabaseSession(session, { notify = false } = {}) {
+    if (!session?.access_token) return;
+    state.session = session;
+    state.token = session.access_token;
+    sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    try {
+        state.principal = await getCurrentIdentity(state.token);
+        if (state.principal.is_anonymous) {
+            state.connections = [];
+            state.traces = [];
+            state.policies = null;
+            renderAll();
+        } else {
+            await loadPrivateData({ quiet: true });
+        }
+        if ($('#operator-modal').open) $('#operator-modal').close();
+        updateOperatorUi();
+        if (notify) {
+            showToast(
+                state.principal.is_anonymous ? 'Guest trial ready' : 'Workspace unlocked',
+                state.principal.is_anonymous
+                    ? `${state.principal.guest_requests_remaining} guarded playground requests remain.`
+                    : 'Your private connections, policies, and traces are available.',
+            );
+        }
+    } catch (error) {
+        clearIdentity();
+        throw error;
+    }
+}
+
+function openAccountModal() {
+    if (!state.token) {
+        openOperatorModal();
+        return;
+    }
+    const principal = state.principal;
+    $('#account-identity').textContent = principal?.email
+        || (principal?.is_anonymous ? 'Anonymous guest session' : 'Legacy operator session');
+    $('#account-kind').textContent = principal?.is_anonymous
+        ? `Guest trial · ${principal.guest_requests_remaining ?? 0} requests remaining`
+        : principal?.auth_method === 'supabase'
+            ? 'Google-authenticated workspace'
+            : 'Server operator access';
+    $('#personal-token-panel').hidden = principal?.auth_method !== 'supabase' || principal?.is_anonymous;
+    $('#personal-token-result').hidden = true;
+    $('#personal-token-value').value = '';
+    $('#account-modal').showModal();
+}
+
+async function generatePersonalAccessToken() {
+    const button = $('#generate-token-button');
+    button.disabled = true;
+    try {
+        const result = await createPersonalToken(state.token, Number($('#token-lifetime').value));
+        $('#personal-token-value').value = result.token;
+        $('#personal-token-expiry').textContent = `Expires ${formatDate(result.expires_at, true)} · shown once`;
+        $('#personal-token-result').hidden = false;
+        showToast('Personal token created', 'Copy it now; Guard-AI will not show it again.');
+    } catch (error) {
+        if (!handleAuthError(error)) showToast('Token creation failed', describeError(error), 'error');
+    } finally {
+        button.disabled = false;
+    }
+}
+
 async function loadPrivateData({ quiet = false } = {}) {
-    if (!state.token) return;
+    if (!state.token || state.principal?.is_anonymous) return;
     try {
         const [connections, policies, traces] = await Promise.all([
             listConnections(state.token), getPolicies(state.token), listTraces(state.token),
@@ -212,8 +311,10 @@ function renderOverview() {
     $('#metric-requests').textContent = state.traces.length;
     $('#metric-policy').textContent = state.policies ? `r${state.policies.runtime.revision}` : '—';
     $('#metric-connections-note').textContent = state.token
-        ? `${state.connections.length} configured · ${verified.length} verified`
-        : 'Unlock to load integrations';
+        ? state.principal?.is_anonymous
+            ? 'Guest trial · playground only'
+            : `${state.connections.length} configured · ${verified.length} verified`
+        : 'Sign in to load integrations';
     $('#metric-policy-note').textContent = state.policies
         ? `Updated ${formatDate(state.policies.runtime.updated_at)}`
         : 'Runtime policy state';
@@ -505,7 +606,15 @@ function renderDecision(response) {
     const summary = $('#decision-summary');
     summary.className = `decision-summary ${status}`;
     $('strong', summary).textContent = status === 'blocked' ? 'Request blocked safely' : status === 'needs_approval' ? 'Approval required' : 'Request allowed';
-    $('p', summary).textContent = `${response.guardrails.length} guardrail stage${response.guardrails.length === 1 ? '' : 's'} completed before the boundary response.`;
+    const degraded = response.guardrails.some((item) => item.metadata?.degraded_simulation);
+    $('p', summary).textContent = degraded
+        ? 'Semantic judge was unavailable. No AI, data source, or tool was invoked; deterministic checks only.'
+        : response.provider_invoked
+            ? `${response.guardrails.length} guardrail stages completed around a live AI-provider response.`
+            : `${response.guardrails.length} guardrail stages completed in simulation; no AI provider was invoked.`;
+    $('#agent-mode').textContent = response.provider_invoked
+        ? 'Live provider response'
+        : degraded ? 'Degraded · simulation only' : 'Guardrail simulation';
     const timeline = $('#decision-timeline');
     timeline.replaceChildren();
     for (const result of response.guardrails) {
@@ -522,6 +631,11 @@ function renderDecision(response) {
 
 async function submitChat(event) {
     event.preventDefault();
+    if (!state.token) {
+        openOperatorModal();
+        showToast('Sign in to run the demo', 'Choose Google or a limited guest trial.', 'error');
+        return;
+    }
     const input = $('#chat-input');
     const message = input.value.trim();
     if (!message) return;
@@ -532,15 +646,20 @@ async function submitChat(event) {
     $('#char-count').textContent = '0 / 100k';
     button.disabled = true;
     try {
-        const response = await sendChatMessage(message, {
+        const response = await sendChatMessage(state.token, message, {
             aiConnectionId: $('#ai-route-select').value || undefined,
             dataConnectionIds: $('#data-route-select').value ? [$('#data-route-select').value] : [],
         });
         appendMessage(response.response, 'system');
         renderDecision(response);
-        if (state.token) await refreshTraces();
+        if (state.principal?.is_anonymous) {
+            state.principal.guest_requests_remaining = response.guest_requests_remaining;
+            updateOperatorUi();
+        } else {
+            await refreshTraces();
+        }
     } catch (error) {
-        appendMessage('The request could not reach the Guard-AI backend.', 'system');
+        appendMessage(describeError(error), 'system');
         showToast('Request failed', describeError(error), 'error');
     } finally {
         button.disabled = false;
@@ -560,6 +679,7 @@ function resetChat() {
     $('p', summary).textContent = 'Guardrail results will appear here without retaining raw prompt content.';
     $('#decision-timeline').replaceChildren();
     $('#trace-reference').hidden = true;
+    $('#agent-mode').textContent = 'Policy pipeline online';
 }
 
 function renderTraces() {
@@ -639,8 +759,26 @@ function bindEvents() {
     $$('[data-action="connect"]').forEach((button) => button.addEventListener('click', openConnectionModal));
     $$('[data-action="playground"]').forEach((button) => button.addEventListener('click', () => navigate('playground')));
     $('#quickstart-button').addEventListener('click', () => { navigate('connections'); if (!state.token) openOperatorModal(); });
-    $('#operator-button').addEventListener('click', () => state.token ? lockConsole() : openOperatorModal());
+    $('#operator-button').addEventListener('click', () => state.token ? openAccountModal() : openOperatorModal());
     $('#operator-modal-close').addEventListener('click', () => $('#operator-modal').close());
+    $('#google-login-button').addEventListener('click', async () => {
+        const button = $('#google-login-button');
+        button.disabled = true;
+        try { await signInWithGoogle(); }
+        catch (error) { showToast('Google sign-in failed', describeError(error), 'error'); button.disabled = false; }
+    });
+    $('#guest-login-button').addEventListener('click', async () => {
+        const button = $('#guest-login-button');
+        button.disabled = true;
+        try {
+            const session = await signInAsGuest();
+            await activateSupabaseSession(session, { notify: true });
+        } catch (error) {
+            showToast('Guest trial failed', describeError(error), 'error');
+        } finally {
+            button.disabled = false;
+        }
+    });
     $('#operator-form').addEventListener('submit', async (event) => {
         event.preventDefault();
         const token = $('#operator-token').value.trim();
@@ -649,6 +787,20 @@ function bindEvents() {
         try { await unlockConsole(token); }
         catch (error) { showToast('Unlock failed', describeError(error), 'error'); }
         finally { button.disabled = false; }
+    });
+    $('#account-modal-close').addEventListener('click', () => $('#account-modal').close());
+    $('#sign-out-button').addEventListener('click', async () => {
+        try { await logOut(); }
+        catch (error) { showToast('Sign out failed', describeError(error), 'error'); }
+    });
+    $('#generate-token-button').addEventListener('click', generatePersonalAccessToken);
+    $('#copy-token-button').addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText($('#personal-token-value').value);
+            showToast('Token copied', 'Store it in your service secret manager.');
+        } catch {
+            showToast('Copy failed', 'Select and copy the token manually.', 'error');
+        }
     });
     $('#add-connection-button').addEventListener('click', openConnectionModal);
     $('#import-env-button').addEventListener('click', importConfiguredServices);
@@ -696,7 +848,22 @@ async function initialize() {
     if (catalogResult.status === 'fulfilled') state.catalog = catalogResult.value;
     else showToast('Catalog unavailable', 'Connector definitions could not be loaded.', 'error');
     renderAll();
-    if (state.token) await loadPrivateData({ quiet: true });
+    try {
+        const auth = await initializeAuth(async (session) => {
+            if (session?.access_token && session.access_token !== state.token) {
+                try { await activateSupabaseSession(session); }
+                catch (error) { showToast('Session rejected', describeError(error), 'error'); }
+            }
+        });
+        state.authConfigured = auth.configured;
+        $('#google-login-button').disabled = !auth.configured;
+        $('#guest-login-button').disabled = !auth.configured;
+        if (auth.session) await activateSupabaseSession(auth.session);
+        else if (state.token) await unlockConsole(state.token);
+    } catch (error) {
+        showToast('Authentication unavailable', describeError(error), 'error');
+        if (state.token) await unlockConsole(state.token).catch(() => clearIdentity());
+    }
 }
 
 initialize();

@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Security
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from backend.app.api.dependencies import admin_bearer, require_admin
+from backend.app.api.dependencies import require_scope
 from backend.app.mcp.config import settings as mcp_settings
 from backend.app.policy.runtime import (
     RuntimePolicySnapshot,
     RuntimePolicyUpdate,
     runtime_policy_store,
 )
+from backend.app.security.auth import AuthPrincipal
 
 
 class TransportPolicy(BaseModel):
@@ -31,15 +31,9 @@ class PolicyResponse(BaseModel):
 router = APIRouter(prefix="/policies", tags=["policies"])
 
 
-async def _authorize(
-    credentials: HTTPAuthorizationCredentials | None = Security(admin_bearer()),
-) -> None:
-    await require_admin(credentials)
-
-
-def _response() -> PolicyResponse:
+def _response(owner_id: str) -> PolicyResponse:
     return PolicyResponse(
-        runtime=runtime_policy_store.snapshot(),
+        runtime=runtime_policy_store.snapshot(owner_id),
         transport=TransportPolicy(
             tls_version=mcp_settings.expected_tls_version,
             key_exchange_group=mcp_settings.expected_tls_group,
@@ -50,12 +44,17 @@ def _response() -> PolicyResponse:
     )
 
 
-@router.get("", response_model=PolicyResponse, dependencies=[Depends(_authorize)])
-async def get_policies() -> PolicyResponse:
-    return _response()
+@router.get("", response_model=PolicyResponse)
+async def get_policies(
+    principal: AuthPrincipal = Depends(require_scope("policies:read")),
+) -> PolicyResponse:
+    return _response(principal.owner_id)
 
 
-@router.put("", response_model=PolicyResponse, dependencies=[Depends(_authorize)])
-async def update_policies(request: RuntimePolicyUpdate) -> PolicyResponse:
-    runtime_policy_store.update(request)
-    return _response()
+@router.put("", response_model=PolicyResponse)
+async def update_policies(
+    request: RuntimePolicyUpdate,
+    principal: AuthPrincipal = Depends(require_scope("policies:write")),
+) -> PolicyResponse:
+    runtime_policy_store.update(request, principal.owner_id)
+    return _response(principal.owner_id)

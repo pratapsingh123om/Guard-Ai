@@ -18,10 +18,13 @@ import sys
 TOKEN_BYTES = 32
 MIN_SEED_LENGTH = 20
 PBKDF2_ITERATIONS = 600_000
-DERIVATION_CONTEXT = b"Guard-AI/GUARD_ADMIN_TOKEN/v1"
+DERIVATION_CONTEXTS = {
+    "admin": b"Guard-AI/GUARD_ADMIN_TOKEN/v1",
+    "api": b"Guard-AI/GUARD_API_TOKEN_SECRET/v1",
+}
 
 
-def derive_token(seed: str) -> str:
+def derive_token(seed: str, purpose: str = "admin") -> str:
     """Derive a deterministic 256-bit token from a secret seed."""
     if len(seed) < MIN_SEED_LENGTH:
         raise ValueError(
@@ -32,7 +35,7 @@ def derive_token(seed: str) -> str:
     token = hashlib.pbkdf2_hmac(
         "sha256",
         seed.encode("utf-8"),
-        DERIVATION_CONTEXT,
+        DERIVATION_CONTEXTS[purpose],
         PBKDF2_ITERATIONS,
         dklen=TOKEN_BYTES,
     )
@@ -57,6 +60,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--random",
         action="store_true",
         help="generate a new random token instead of deriving one from a seed",
+    )
+    parser.add_argument(
+        "--purpose",
+        choices=sorted(DERIVATION_CONTEXTS),
+        default="admin",
+        help="generate the operator token or the separate personal-token signing secret",
     )
     parser.add_argument(
         "--raw",
@@ -84,12 +93,13 @@ def main() -> int:
             else:
                 seed = getpass.getpass("Guard-AI secret seed: ")
 
-            token = derive_token(seed)
+            token = derive_token(seed, args.purpose)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    print(token if args.raw else f"GUARD_ADMIN_TOKEN={token}")
+    variable = "GUARD_ADMIN_TOKEN" if args.purpose == "admin" else "GUARD_API_TOKEN_SECRET"
+    print(token if args.raw else f"{variable}={token}")
     return 0
 
 

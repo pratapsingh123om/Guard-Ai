@@ -19,6 +19,8 @@ from backend.app.integrations.models import (
     ConnectionStatus,
 )
 
+DEFAULT_OWNER_ID = "legacy-admin"
+
 
 @dataclass
 class ConnectionRecord:
@@ -32,6 +34,7 @@ class ConnectionRecord:
     status: ConnectionStatus
     created_at: datetime
     updated_at: datetime
+    owner_id: str = DEFAULT_OWNER_ID
     last_tested_at: datetime | None = None
     last_error: str | None = None
 
@@ -58,14 +61,24 @@ class ConnectionStore:
         self._records: dict[UUID, ConnectionRecord] = {}
         self._lock = threading.RLock()
 
-    def create(self, value: ConnectionCreate) -> ConnectionResponse:
+    def create(
+        self,
+        value: ConnectionCreate,
+        *,
+        owner_id: str = DEFAULT_OWNER_ID,
+    ) -> ConnectionResponse:
         now = datetime.now(timezone.utc)
         with self._lock:
             if len(self._records) >= self.max_connections:
                 raise OverflowError("connection registry capacity reached")
-            if any(record.name.casefold() == value.name.casefold() for record in self._records.values()):
+            if any(
+                record.owner_id == owner_id
+                and record.name.casefold() == value.name.casefold()
+                for record in self._records.values()
+            ):
                 raise ValueError("a connection with this name already exists")
             record = ConnectionRecord(
+                owner_id=owner_id,
                 id=uuid4(),
                 name=value.name,
                 category=value.category,
@@ -82,24 +95,54 @@ class ConnectionStore:
             self._records[record.id] = record
             return record.to_response()
 
-    def list(self) -> list[ConnectionResponse]:
+    def list(self, *, owner_id: str = DEFAULT_OWNER_ID) -> list[ConnectionResponse]:
         with self._lock:
-            records = sorted(self._records.values(), key=lambda item: item.created_at)
+            records = sorted(
+                (
+                    record
+                    for record in self._records.values()
+                    if record.owner_id == owner_id
+                ),
+                key=lambda item: item.created_at,
+            )
             return [record.to_response() for record in records]
 
-    def get(self, connection_id: UUID) -> ConnectionRecord | None:
-        with self._lock:
-            return self._records.get(connection_id)
-
-    def get_response(self, connection_id: UUID) -> ConnectionResponse | None:
+    def get(
+        self,
+        connection_id: UUID,
+        *,
+        owner_id: str = DEFAULT_OWNER_ID,
+    ) -> ConnectionRecord | None:
         with self._lock:
             record = self._records.get(connection_id)
-            return record.to_response() if record else None
+            return record if record is not None and record.owner_id == owner_id else None
 
-    def get_response_by_name(self, name: str) -> ConnectionResponse | None:
+    def get_response(
+        self,
+        connection_id: UUID,
+        *,
+        owner_id: str = DEFAULT_OWNER_ID,
+    ) -> ConnectionResponse | None:
+        with self._lock:
+            record = self._records.get(connection_id)
+            return (
+                record.to_response()
+                if record is not None and record.owner_id == owner_id
+                else None
+            )
+
+    def get_response_by_name(
+        self,
+        name: str,
+        *,
+        owner_id: str = DEFAULT_OWNER_ID,
+    ) -> ConnectionResponse | None:
         with self._lock:
             for record in self._records.values():
-                if record.name.casefold() == name.casefold():
+                if (
+                    record.owner_id == owner_id
+                    and record.name.casefold() == name.casefold()
+                ):
                     return record.to_response()
         return None
 
@@ -109,11 +152,12 @@ class ConnectionStore:
         *,
         status: ConnectionStatus,
         error: str | None = None,
+        owner_id: str = DEFAULT_OWNER_ID,
     ) -> ConnectionResponse | None:
         now = datetime.now(timezone.utc)
         with self._lock:
             record = self._records.get(connection_id)
-            if record is None:
+            if record is None or record.owner_id != owner_id:
                 return None
             record.status = status
             record.last_tested_at = now
@@ -121,9 +165,17 @@ class ConnectionStore:
             record.last_error = error
             return record.to_response()
 
-    def delete(self, connection_id: UUID) -> bool:
+    def delete(
+        self,
+        connection_id: UUID,
+        *,
+        owner_id: str = DEFAULT_OWNER_ID,
+    ) -> bool:
         with self._lock:
-            record = self._records.pop(connection_id, None)
+            record = self._records.get(connection_id)
+            if record is None or record.owner_id != owner_id:
+                return False
+            self._records.pop(connection_id)
             if record is not None:
                 record.credentials.clear()
             return record is not None

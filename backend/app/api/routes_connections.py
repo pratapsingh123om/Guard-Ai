@@ -6,11 +6,10 @@ import os
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, Security, status
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field, SecretStr
 
-from backend.app.api.dependencies import admin_bearer, require_admin
+from backend.app.api.dependencies import require_legacy_admin, require_scope
 from backend.app.demo.database import ensure_demo_database
 from backend.app.integrations.models import (
     CONNECTOR_CATALOG,
@@ -22,6 +21,7 @@ from backend.app.integrations.models import (
 )
 from backend.app.integrations.store import connection_store
 from backend.app.integrations.testers import verify_connection_record
+from backend.app.security.auth import AuthPrincipal
 
 
 router = APIRouter(prefix="/connections", tags=["connections"])
@@ -33,12 +33,6 @@ class EnvironmentImportResponse(BaseModel):
     unavailable: list[str] = Field(default_factory=list)
 
 
-async def _authorize(
-    credentials: HTTPAuthorizationCredentials | None = Security(admin_bearer()),
-) -> None:
-    await require_admin(credentials)
-
-
 @router.get("/catalog", response_model=list[ConnectorDefinition])
 async def list_connector_types() -> list[ConnectorDefinition]:
     """Return non-secret connector metadata used to build setup forms."""
@@ -46,20 +40,24 @@ async def list_connector_types() -> list[ConnectorDefinition]:
     return list(CONNECTOR_CATALOG.values())
 
 
-@router.get("", response_model=list[ConnectionResponse], dependencies=[Depends(_authorize)])
-async def list_connections() -> list[ConnectionResponse]:
-    return connection_store.list()
+@router.get("", response_model=list[ConnectionResponse])
+async def list_connections(
+    principal: AuthPrincipal = Depends(require_scope("connections:read")),
+) -> list[ConnectionResponse]:
+    return connection_store.list(owner_id=principal.owner_id)
 
 
 @router.post(
     "",
     response_model=ConnectionResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(_authorize)],
 )
-async def create_connection(request: ConnectionCreate) -> ConnectionResponse:
+async def create_connection(
+    request: ConnectionCreate,
+    principal: AuthPrincipal = Depends(require_scope("connections:write")),
+) -> ConnectionResponse:
     try:
-        return connection_store.create(request)
+        return connection_store.create(request, owner_id=principal.owner_id)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except OverflowError as exc:
@@ -69,9 +67,10 @@ async def create_connection(request: ConnectionCreate) -> ConnectionResponse:
 @router.post(
     "/import-env",
     response_model=EnvironmentImportResponse,
-    dependencies=[Depends(_authorize)],
 )
-async def import_environment_connections() -> EnvironmentImportResponse:
+async def import_environment_connections(
+    principal: AuthPrincipal = Depends(require_legacy_admin),
+) -> EnvironmentImportResponse:
     """Import supported server-side environment integrations without exposing secrets."""
 
     candidates: list[ConnectionCreate] = []
@@ -125,12 +124,17 @@ async def import_environment_connections() -> EnvironmentImportResponse:
 
     result = EnvironmentImportResponse(unavailable=unavailable)
     for candidate in candidates:
-        existing = connection_store.get_response_by_name(candidate.name)
+        existing = connection_store.get_response_by_name(
+            candidate.name,
+            owner_id=principal.owner_id,
+        )
         if existing is not None:
             result.existing.append(existing)
             continue
         try:
-            result.imported.append(connection_store.create(candidate))
+            result.imported.append(
+                connection_store.create(candidate, owner_id=principal.owner_id)
+            )
         except (ValueError, OverflowError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
     return result
@@ -139,10 +143,12 @@ async def import_environment_connections() -> EnvironmentImportResponse:
 @router.get(
     "/{connection_id}",
     response_model=ConnectionResponse,
-    dependencies=[Depends(_authorize)],
 )
-async def get_connection(connection_id: UUID) -> ConnectionResponse:
-    result = connection_store.get_response(connection_id)
+async def get_connection(
+    connection_id: UUID,
+    principal: AuthPrincipal = Depends(require_scope("connections:read")),
+) -> ConnectionResponse:
+    result = connection_store.get_response(connection_id, owner_id=principal.owner_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Connection not found.")
     return result
@@ -151,12 +157,14 @@ async def get_connection(connection_id: UUID) -> ConnectionResponse:
 @router.post(
     "/{connection_id}/test",
     response_model=ConnectionTestResponse,
-    dependencies=[Depends(_authorize)],
 )
-async def test_connection(connection_id: UUID) -> ConnectionTestResponse:
+async def test_connection(
+    connection_id: UUID,
+    principal: AuthPrincipal = Depends(require_scope("connections:write")),
+) -> ConnectionTestResponse:
     """Run a connector-specific, allowlisted, non-mutating verification."""
 
-    record = connection_store.get(connection_id)
+    record = connection_store.get(connection_id, owner_id=principal.owner_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Connection not found.")
 
@@ -166,6 +174,7 @@ async def test_connection(connection_id: UUID) -> ConnectionTestResponse:
         connection_id,
         status=outcome.status,
         error=outcome.error,
+        owner_id=principal.owner_id,
     )
     return ConnectionTestResponse(
         connection_id=connection_id,
@@ -182,9 +191,11 @@ async def test_connection(connection_id: UUID) -> ConnectionTestResponse:
 @router.delete(
     "/{connection_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(_authorize)],
 )
-async def delete_connection(connection_id: UUID) -> Response:
-    if not connection_store.delete(connection_id):
+async def delete_connection(
+    connection_id: UUID,
+    principal: AuthPrincipal = Depends(require_scope("connections:write")),
+) -> Response:
+    if not connection_store.delete(connection_id, owner_id=principal.owner_id):
         raise HTTPException(status_code=404, detail="Connection not found.")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -23,6 +23,7 @@ class TraceEvent(BaseModel):
 
 
 class TraceRecord(BaseModel):
+    owner_id: str = Field(default="legacy-admin", exclude=True)
     trace_id: UUID
     started_at: datetime
     completed_at: datetime
@@ -41,17 +42,32 @@ class TraceStore:
         with self._lock:
             self._records.append(record.model_copy(deep=True))
 
-    def list(self, *, limit: int, status: str | None = None) -> list[TraceRecord]:
+    def list(
+        self,
+        *,
+        limit: int,
+        status: str | None = None,
+        owner_id: str = "legacy-admin",
+    ) -> list[TraceRecord]:
         with self._lock:
-            records = list(reversed(self._records))
+            records = [
+                record
+                for record in reversed(self._records)
+                if record.owner_id == owner_id
+            ]
         if status is not None:
             records = [record for record in records if record.status == status]
         return [record.model_copy(deep=True) for record in records[:limit]]
 
-    def get(self, trace_id: UUID) -> TraceRecord | None:
+    def get(
+        self,
+        trace_id: UUID,
+        *,
+        owner_id: str = "legacy-admin",
+    ) -> TraceRecord | None:
         with self._lock:
             for record in self._records:
-                if record.trace_id == trace_id:
+                if record.trace_id == trace_id and record.owner_id == owner_id:
                     return record.model_copy(deep=True)
         return None
 

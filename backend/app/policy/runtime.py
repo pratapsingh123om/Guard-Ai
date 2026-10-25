@@ -34,33 +34,41 @@ class RuntimePolicySnapshot(BaseModel):
 
 class RuntimePolicyStore:
     def __init__(self) -> None:
-        self._policy = RuntimePolicy()
-        self._revision = 1
-        self._updated_at = datetime.now(timezone.utc)
+        self._states: dict[str, RuntimePolicySnapshot] = {}
         self._lock = threading.RLock()
 
-    def snapshot(self) -> RuntimePolicySnapshot:
+    def snapshot(self, owner_id: str = "legacy-admin") -> RuntimePolicySnapshot:
         with self._lock:
-            return RuntimePolicySnapshot(
-                revision=self._revision,
-                updated_at=self._updated_at,
-                policy=self._policy.model_copy(deep=True),
-            )
+            state = self._states.get(owner_id)
+            if state is None:
+                state = RuntimePolicySnapshot(
+                    revision=1,
+                    updated_at=datetime.now(timezone.utc),
+                    policy=RuntimePolicy(),
+                )
+                self._states[owner_id] = state
+            return state.model_copy(deep=True)
 
-    def update(self, update: RuntimePolicyUpdate) -> RuntimePolicySnapshot:
+    def update(
+        self,
+        update: RuntimePolicyUpdate,
+        owner_id: str = "legacy-admin",
+    ) -> RuntimePolicySnapshot:
         values = update.model_dump(exclude_none=True)
         with self._lock:
+            state = self.snapshot(owner_id)
             if values:
-                self._policy = self._policy.model_copy(update=values)
-                self._revision += 1
-                self._updated_at = datetime.now(timezone.utc)
-            return self.snapshot()
+                state = RuntimePolicySnapshot(
+                    revision=state.revision + 1,
+                    updated_at=datetime.now(timezone.utc),
+                    policy=state.policy.model_copy(update=values),
+                )
+                self._states[owner_id] = state
+            return state.model_copy(deep=True)
 
     def reset(self) -> None:
         with self._lock:
-            self._policy = RuntimePolicy()
-            self._revision = 1
-            self._updated_at = datetime.now(timezone.utc)
+            self._states.clear()
 
 
 runtime_policy_store = RuntimePolicyStore()

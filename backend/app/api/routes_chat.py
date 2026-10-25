@@ -9,14 +9,20 @@ from urllib.parse import unquote, urlsplit
 from uuid import UUID
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from backend.app.agent.provider_gateway import (
+    ProviderInvocationError,
+    invoke_ai_connection,
+)
+from backend.app.api.dependencies import require_user
 from backend.app.guardrails.pipeline import GuardrailPipeline, PipelineStatus
 from backend.app.demo.database import DEMO_DATABASE_NAME, read_demo_summary
 from backend.app.integrations.models import ConnectionCategory, ConnectionStatus
 from backend.app.integrations.store import ConnectionRecord, connection_store
 from backend.app.observability.traces import TraceEvent, TraceRecord, trace_store
+from backend.app.security.auth import AuthPrincipal, guest_quota
 
 
 class DocumentInput(BaseModel):
@@ -60,56 +66,89 @@ def _read_verified_demo_context(record: ConnectionRecord) -> dict[str, Any] | No
 
 
 @router.post("/chat")
-async def chat_endpoint(request: ChatRequest) -> dict[str, Any]:
+async def chat_endpoint(
+    request: ChatRequest,
+    principal: AuthPrincipal = Depends(require_user),
+) -> dict[str, Any]:
     started_at = datetime.now(timezone.utc)
     trace_id = uuid4()
+    if principal.is_anonymous:
+        guest_quota.consume(principal.subject)
 
+    ai_connection: ConnectionRecord | None = None
     if request.ai_connection_id is not None:
-        ai_connection = connection_store.get(request.ai_connection_id)
+        ai_connection = connection_store.get(
+            request.ai_connection_id,
+            owner_id=principal.owner_id,
+        )
         if ai_connection is None or ai_connection.category is not ConnectionCategory.AI_PROVIDER:
             raise HTTPException(status_code=404, detail="AI connection not found.")
     data_connections: list[ConnectionRecord] = []
     for connection_id in request.data_connection_ids:
-        data_connection = connection_store.get(connection_id)
+        data_connection = connection_store.get(
+            connection_id,
+            owner_id=principal.owner_id,
+        )
         if data_connection is None or data_connection.category is ConnectionCategory.AI_PROVIDER:
             raise HTTPException(status_code=404, detail="Data connection not found.")
         data_connections.append(data_connection)
 
-    decision = pipeline.inspect_before_agent(
+    decision = await pipeline.inspect_before_agent_async(
         message=request.message,
         documents=[document.content for document in request.documents],
         proposed_actions=request.proposed_actions,
+        owner_id=principal.owner_id,
+        semantic_fail_closed=bool(ai_connection or data_connections),
     )
+
+    demo_contexts = [
+        context
+        for record in data_connections
+        if (context := _read_verified_demo_context(record)) is not None
+    ]
+    provider_invoked = False
 
     if decision.status is PipelineStatus.BLOCKED:
         raw_response = "Request blocked by Guard-AI policy."
     elif decision.status is PipelineStatus.NEEDS_APPROVAL:
-        raw_response = "The proposed action requires approval and was not executed."
+        raw_response = "This high-impact request requires explicit approval and was not executed."
+        demo_contexts = []
     else:
-        raw_response = f"Guard-AI accepted: {request.message}"
-        demo_contexts = [
-            context
-            for record in data_connections
-            if (context := _read_verified_demo_context(record)) is not None
-        ]
-        if demo_contexts:
+        if ai_connection is not None:
+            try:
+                raw_response = await invoke_ai_connection(
+                    ai_connection,
+                    prompt=request.message,
+                    data_contexts=demo_contexts,
+                )
+                provider_invoked = True
+            except ProviderInvocationError as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+        elif demo_contexts:
             context = demo_contexts[0]
-            raw_response += (
-                " Connected demo data: "
+            raw_response = (
+                "Guardrail-only simulation passed. Connected demo data: "
                 f"{context['customer_count']} customers, {context['order_count']} orders, "
                 f"{context['orders_in_review']} in review, and "
                 f"${context['order_total_cents'] / 100:,.2f} in order value."
+            )
+        else:
+            raw_response = (
+                "Guardrail-only simulation passed. Sanitized echo: "
+                f"{request.message} Select a verified AI connection to generate "
+                "a live model response."
             )
 
     if decision.status is not PipelineStatus.ALLOWED:
         demo_contexts = []
 
-    output_result = pipeline.inspect_output(raw_response)
+    output_result = pipeline.inspect_output(raw_response, owner_id=principal.owner_id)
     response = output_result.transformed_content or raw_response
     results = (*decision.results, output_result)
 
     trace_store.add(
         TraceRecord(
+            owner_id=principal.owner_id,
             trace_id=trace_id,
             started_at=started_at,
             completed_at=datetime.now(timezone.utc),
@@ -142,4 +181,11 @@ async def chat_endpoint(request: ChatRequest) -> dict[str, Any]:
             "data": [str(connection_id) for connection_id in request.data_connection_ids],
         },
         "data_contexts": demo_contexts,
+        "response_mode": "connected_ai" if provider_invoked else "guardrail_simulation",
+        "provider_invoked": provider_invoked,
+        "guest_requests_remaining": (
+            guest_quota.remaining(principal.subject)
+            if principal.is_anonymous
+            else None
+        ),
     }

@@ -59,6 +59,22 @@ export function checkHealth() {
     return request('/health', { versioned: false });
 }
 
+export function getAuthConfig() {
+    return request('/auth/config');
+}
+
+export function getCurrentIdentity(token) {
+    return request('/auth/me', { token });
+}
+
+export function createPersonalToken(token, expiresInHours = 24) {
+    return request('/auth/tokens', {
+        token,
+        method: 'POST',
+        body: { expires_in_hours: expiresInHours },
+    });
+}
+
 export function getConnectionCatalog() {
     return request('/connections/catalog');
 }
@@ -95,8 +111,9 @@ export function listTraces(token, limit = 100) {
     return request(`/traces?limit=${encodeURIComponent(limit)}`, { token });
 }
 
-export function sendChatMessage(message, { aiConnectionId, dataConnectionIds = [] } = {}) {
+export function sendChatMessage(token, message, { aiConnectionId, dataConnectionIds = [] } = {}) {
     return request('/chat', {
+        token,
         method: 'POST',
         body: {
             message,

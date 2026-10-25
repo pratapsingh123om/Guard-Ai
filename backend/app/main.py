@@ -13,6 +13,7 @@ load_dotenv()
 load_dotenv(".env.integrations", override=False)
 
 from backend.app.api.route_health import router as health_router
+from backend.app.api.routes_auth import router as auth_router
 from backend.app.api.routes_connections import router as connections_router
 from backend.app.api.routes_demo import router as demo_router
 from backend.app.api.routes_chat import router as chat_router
@@ -88,6 +89,7 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
+app.include_router(auth_router, prefix="/api/v1")
 app.include_router(chat_router)
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(connections_router, prefix="/api/v1")

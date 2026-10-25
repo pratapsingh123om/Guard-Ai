@@ -1,19 +1,22 @@
 # Guard-AI integration management API
 
-The integration API lets the dashboard register AI providers, databases, vector stores, object stores, APIs, and MCP servers. Management endpoints are disabled until `GUARD_ADMIN_TOKEN` is configured and require `Authorization: Bearer <token>`.
+The integration API lets each authenticated workspace register AI providers, databases, vector stores, object stores, APIs, and MCP servers. Management endpoints accept an active Supabase session, an expiring personal Guard-AI token, or the legacy operator token through `Authorization: Bearer <token>`. Guest sessions are playground-only.
 
 ## Endpoints
 
-| Method | Path | Purpose | Operator token |
+| Method | Path | Purpose | Authentication |
 |---|---|---|---|
 | GET | `/api/v1/connections/catalog` | List supported connector definitions | No |
+| GET | `/api/v1/auth/config` | Return browser-safe Supabase bootstrap values | No |
+| GET | `/api/v1/auth/me` | Return current tenant identity and scopes | Any session/token |
+| POST | `/api/v1/auth/tokens` | Mint an expiring personal API token | Non-anonymous Supabase user |
 | GET | `/api/v1/demo/health` | Verify the synthetic service and SQLite database | No |
 | GET | `/api/v1/demo/summary` | Read aggregate synthetic demo data | No |
 | GET | `/api/v1/demo/customers` | Read bounded synthetic customer records | No |
 | GET | `/api/v1/demo/orders` | Read bounded synthetic order records | No |
 | GET | `/api/v1/connections` | List configured connections | Yes |
 | POST | `/api/v1/connections` | Register a connection and its credentials | Yes |
-| POST | `/api/v1/connections/import-env` | Import supported server-side environment integrations | Yes |
+| POST | `/api/v1/connections/import-env` | Import supported server-side environment integrations | Legacy operator only |
 | GET | `/api/v1/connections/{id}` | Read masked connection metadata | Yes |
 | POST | `/api/v1/connections/{id}/test` | Validate stored configuration | Yes |
 | DELETE | `/api/v1/connections/{id}` | Remove a connection and clear its secrets | Yes |
@@ -39,6 +42,10 @@ Content-Type: application/json
 ```
 
 Credentials are write-only. Responses contain `credential_fields`, never credential values. Secret-like keys are rejected from the ordinary `settings` object, and endpoint URLs containing usernames or passwords are rejected.
+
+For OpenRouter, set `settings.model`, test the connection, and select it as the
+playground AI destination. Allowed requests then receive a real provider
+response; blocked or approval-required requests never reach the provider.
 
 `POST /connections/import-env` imports OpenRouter, Supabase, and the bundled SQLite demo when their server-side configuration is available. It is idempotent by connection name and never returns environment values. This lets the dashboard discover locally configured services without copying credentials into the browser.
 
@@ -92,4 +99,4 @@ responses, and credentials.
 
 ## Storage limitation
 
-The included registry is a bounded, thread-safe in-memory implementation for the local demonstration. Connections, policies, and traces reset when the process restarts. Before production use, replace it with encrypted persistent metadata storage and an external secret manager; do not serialize the internal secret-bearing connection records.
+The included registry is a bounded, tenant-isolated in-memory implementation for the demonstration. Connections, policies, traces, and guest counters are not durable across process restarts or serverless instances. Personal tokens are stateless and remain valid until expiry unless `GUARD_API_TOKEN_SECRET` is rotated; there is no per-token revocation store yet. Before production use, replace the registry and counters with durable tenant storage, add token revocation, and store credentials in an external secret manager; do not serialize the internal secret-bearing connection records.
